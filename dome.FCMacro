@@ -1,0 +1,383 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import os, sys
+import math
+
+# DOME params (mm):
+SIDES = int(20)         # Sides of full polygon (pcs)
+OR =   int(5300)        # Outside Radius
+H1 =   int(2000)        # Height of 1st floor (or 0)
+LONG = int(3000)        # Additional length (or 0)
+WOOD = tuple((50, 200)) # (Width, Height)
+CLEANUP = bool(False)   # Clean up document before generation
+
+assert not SIDES % 4 and SIDES, "SIDES not in range, or empty"
+assert OR, "Empty Radius definition"
+assert WOOD[0] and WOOD[1], "Empty cell[/s] in WOOD definition"
+assert OR > WOOD[1] * 5, "Check out WOOD definition (OR TOO LOW RADIUS)"
+h =  WOOD[1] + WOOD[0]/2
+assert H1 >= h or not H1, "H1 must be higher than %smm (Wood bar height+width/2)" % h
+
+import FreeCAD, FreeCADGui
+import Draft
+
+class Trigon:
+    def cos(self, c):
+        return math.cos(math.radians(c))
+
+    def sin(self, c):
+        return math.sin(math.radians(c))
+
+    def rightCathetusB_ByA(self, c, A):
+        return c * self.cos(A)
+
+    def rightCathetusA_ByA(self, c, A):
+        return c * self.sin(A)
+
+    def rightHypothenuseByB(self, a, B):
+        return a / self.cos(B)
+
+    def isoscelesSide(self, b, B):
+        return b / (2 * self.sin(B/2))
+
+class Geom(Trigon):
+    def __init__(self):
+        # Standard radial consts:
+        self.LONG = LONG/2 if LONG else 0
+        self.CIRCLE = 360
+        self.HALF_CIRCLE = self.CIRCLE / 2.0
+        self.SEGMENT_B = self.CIRCLE / SIDES
+        self.QUARTER = int(SIDES / 4.0)
+        self.SEGMENT_A = (self.HALF_CIRCLE - self.SEGMENT_B) / 2.0
+        self.H1_TO_SEGMENT = (self.HALF_CIRCLE - self.SEGMENT_A) / 2.0
+
+    def getSegment(self, Or):
+        return Or * 2 * (self.cos((self.HALF_CIRCLE - self.SEGMENT_B) / 2.0))
+
+    def getWoodSegment(self, w):
+        return self.rightHypothenuseByB(w, 90 - self.SEGMENT_A)
+
+    def points(self, Or):
+        def cathetus(func, side, a):
+            return side * func(a)
+
+        x = y = 0
+        a = self.SEGMENT_A
+        side = self.getSegment(Or)
+        p_n =int(SIDES / 4 / 2)
+        points = [[Or, y]]
+
+        for i in range(p_n):
+            x += cathetus(self.cos, side, a)
+            y += cathetus(self.sin, side, a)
+            points.extend([ [Or - x, y] ])
+            a -= self.SEGMENT_B
+        p = points[:-1] if not self.QUARTER % 2 else points
+        points.extend([[p[1], p[0]] for p in reversed(p)])
+        return points
+
+class Root(Geom):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cleanUp()
+        self.pl = FreeCAD.Placement()
+
+    def vector(self, *v):
+        return FreeCAD.Vector(*v)
+
+    def recompute(self):
+        self.appDoc.recompute()
+
+    def cprint(self, message):
+        App.Console.PrintMessage(message)
+
+    def autogroup(self, obj):
+        return Draft.autogroup(obj)
+
+    def remove(self, obj):
+        self.appDoc.removeObject(obj)
+        self.recompute()
+
+    def removeObjects(self, objects):
+        for obj in objects: self.remove(obj)
+
+    def cleanUp(self):
+        if not len(self.roots) or not CLEANUP: return
+        [self.remove(obj.Name) for obj in self.roots]
+        return self.cleanUp()
+
+    def Polygon(self, sides, **kwargs):
+        return Draft.makePolygon(sides, placement=self.pl, inscribed=True, **kwargs)
+
+    def Wire(self, points, **kwargs):
+        return Draft.makeWire(points, placement=self.pl, **kwargs)
+
+    @property
+    def fcDoc(self):
+        return FreeCAD.ActiveDocument
+
+    @property
+    def appDoc(self):
+        return App.ActiveDocument
+
+    @property
+    def guiDoc(self):
+        return FreeCADGui.ActiveDocument
+
+    @property
+    def roots(self):
+        return self.fcDoc.RootObjects
+
+class Model(Root):
+    def wire(self, points, **kwargs):
+        return self.makeWire(points,placement=self.pl,closed=False,face=False,**kwargs)
+
+    def polygon(self, sides, radius, placement, face=True, support=None):
+        self.pl.Base = self.vector(*placement)
+        pol = self.Polygon(sides,radius=radius,face=face,support=support)
+        self.rotate([pol], 90, placement, (1,0,0), 1, cp=False)
+        self.guiDoc.getObject(pol.Name).Visibility=False
+        Draft.autogroup(pol)
+        return pol
+
+    def circle(self, r, placement):
+        self.pl.Base = self.vector(*placement)
+        circle = Draft.makeCircle(radius=r,placement=self.pl,face=False,support=None)
+        self.autogroup(circle)
+        return circle
+
+    def cut(self, base, tool, vis=False):
+        c = self.fcDoc.addObject('Part::Cut', 'Cut')
+        c.Base = self.fcDoc.getObject(base.Name)
+        c.Tool = self.fcDoc.getObject(tool.Name)
+        self.guiDoc.getObject(base.Name).Visibility = False
+        self.guiDoc.getObject(tool.Name).Visibility = vis
+        self.recompute()
+        return c
+
+    def surface(self, edge1, edge2):
+        s = self.fcDoc.addObject('Part::RuledSurface', 'Surface')
+        self.fcDoc.ActiveObject.Curve1=(edge1,[''])
+        self.fcDoc.ActiveObject.Curve2=(edge2,[''])
+        self.guiDoc.getObject(s.Name).Visibility=False
+        self.recompute()
+        return s
+
+    def extrude(self, surface, direction, height, sym=True, vis=True):
+        f = self.fcDoc.addObject('Part::Extrusion', 'Extrude')
+        f.Base = surface
+        f.DirMode = "Custom"
+        f.Dir = self.vector(direction)
+        f.LengthFwd = height
+        f.Solid = True
+        f.Symmetric = sym
+        self.guiDoc.getObject(f.Name).Visibility=vis
+        self.recompute()
+        return f
+
+    def rotate(self, objs, angle, zero, axis, times, cp=True):
+        for i in range(times):
+            Draft.rotate(
+                objs,
+                angle * (i+1),
+                self.vector(*zero),
+                axis = self.vector(*axis),
+                copy = cp
+            )
+        self.recompute()
+        if cp: return self.roots[-1]
+
+    def move(self, objs, direction, times, cp=True):
+        for i in range(times):
+            Draft.move(objs, self.vector(*direction), copy=cp)
+        self.recompute()
+        if cp: return self.roots[-1]
+
+class WireFrame(Model):
+    def createWireFrame(self):
+        self.POINTS = []
+        self.roofQPoly = []
+        self.roofHor = []
+        self.h1Wall = []
+        self.edges = []
+        self.bottom = []
+        wsW = self.getWoodSegment(WOOD[1])
+        wsH = self.getWoodSegment(WOOD[0])
+        for w in [0, wsW, wsH]:
+            points = self.points(OR-w)
+            self.POINTS.append(points)
+            if w != wsW:
+                self.bottomBarWire(points)
+            if w == wsH: break
+            self.polygonalQVerticalWires(points)
+            self.horizonLongBarWire(w, points)
+            self.verticalH1BarWire(w)
+            self.horizonPolyInsertsWire(w)
+        self.markingPoints()
+
+    def markingPoints(self):
+        points = [self.vector(self.LONG, 0, z) for z in  [0, 300]]
+        self.Wire(points,closed=False,face=False,support=None)
+        self.circle(150, (self.LONG, 0, 0))
+        points = [self.vector(0, -200, 0), self.vector(0, 200, 0)]
+        self.Wire(points,closed=False,face=False,support=None)
+        points = [self.vector(-200, 0, 0), self.vector(200, 0, 0)]
+        self.Wire(points,closed=False,face=False,support=None)
+
+    def polygonalQVerticalWires(self, points):
+        p = []
+        for x, z in reversed(points):
+            p.append(self.vector(x+self.LONG, 0, z+H1))
+        lines = self.Wire(p,closed=False,face=False,support=None)
+        self.autogroup(lines)
+        self.roofQPoly.append(lines)
+
+    def horizonLongBarWire(self, w, points):
+        if not LONG: return
+        w1 = w if not w else WOOD[1]
+        p = [
+            self.vector(WOOD[0]/2, 0, OR + H1-w1),
+            self.vector(self.LONG-WOOD[0]/2, 0, points[-1][1] + H1)
+            ]
+        lines = self.Wire(p,closed=False,face=False,support=None)
+        self.autogroup(lines)
+        self.roofHor.append(lines)
+
+    def verticalH1BarWire(self, w):
+        if not H1: return
+        x = self.LONG+OR if not w else self.LONG+OR-WOOD[1]
+        p = [self.vector(x, 0, 0), self.vector(x, 0, H1)]
+        lines = self.Wire(p,closed=False,face=False,support=None)
+        self.autogroup(lines)
+        self.h1Wall.append(lines)
+
+    def bottomBarWire(self, points):
+        if not H1: return
+        points = [self.vector(x+self.LONG, y, 0) for x, y in points[:2]]
+        lines = self.Wire(points,closed=False,face=False,support=None)
+        self.autogroup(lines)
+        self.bottom.append(lines)
+
+    def horizonPolyInsertsWire(self, w):
+        points = self.POINTS[0]
+        for i in range(self.QUARTER-1, -1, -1):
+            _move = self.moveWoodWidth(w or WOOD[1], self.SEGMENT_B*i)
+            Or = points[i][0] - _move if w else points[i][0]
+            i_points = self.points(Or)
+            drop = self.dropWoodWidth(WOOD[1], self.SEGMENT_B*i)
+            h1 = points[i][1] + H1 - drop if w else points[i][1] + H1
+            p = [self.vector(x+self.LONG, y, h1) for x, y in i_points[:2]]
+            lines = self.Wire(p,closed=False,face=False,support=None)
+            self.autogroup(lines)
+            self.edges.append(lines)
+
+class ModelLayer(WireFrame):
+    def extrudeHorizonPolyInserts(self, surfaces):
+        n = len(surfaces)
+        if not n: return
+        extruded = []
+        height = WOOD[0]
+        zero =  (self.LONG, 0, H1)
+        a_y = (0,1,0)
+        a_z = (0,0,1)
+        for i in range(n):
+            n -= 1
+            self.rotate(surfaces[i], -self.SEGMENT_B/2, zero, a_z, 1, cp=False)
+            self.rotate(surfaces[i],  self.SEGMENT_B*n, zero, a_y, 1, cp=False)
+            extruded.append(self.extrude(surfaces[i], a_z, height, sym=True))
+            self.rotate(extruded[i], -self.SEGMENT_B*n,  zero, a_y, 1, cp=False)
+            self.rotate(extruded[i], (self.SEGMENT_B/2), zero, a_z, 1, cp=False)
+        return extruded
+
+    def surfaceAndExtrudeQVertivcalWall(self, obj):
+        if not len(obj): return
+        s = self.surface(obj[0], obj[1])
+        f = self.extrude(s, (0,1,0), WOOD[0])
+        f1 = self.qArray([f], self.QUARTER)
+        self.moveQVerticalWallToZero()
+        return f, f1
+
+    def cutObjects(self, bases, tools):
+        res = []
+        for i in range(len(tools)):
+            res.append(self.cut(bases[i], tools[i]))
+        return res
+
+class Movement(ModelLayer):
+    def moveH1ToZero(self, f):
+        if not H1:
+            return self.move([self.roots[-1]], (0, 0, WOOD[0]/2), 1, cp=False)
+        return self.move([f], (0, OR-WOOD[0]/2, -H1-OR+WOOD[1]), 1)
+
+    def moveQVerticalWallToZero(self):
+        if not LONG: return
+        amount = int(self.LONG / 1000) or 1
+        dim = self.LONG / amount
+        woods = amount * WOOD[0]
+        dim = (self.LONG - woods) / (amount ) + WOOD[0]
+        self.cprint("%s %s %s" % (dim, amount, woods))
+        for i in range(amount):
+            self.move([self.roots[-1]], (-dim, 0, 0), 1)
+
+    def moveWoodWidth(self, c, A):
+        if not A: return c
+        return self.rightCathetusB_ByA(c, A)
+
+    def dropWoodWidth(self, c, A):
+        if not A: return 0
+        return self.rightCathetusA_ByA(c, A)
+
+    def qArray(self, objs, times):
+        return self.rotate(objs, self.SEGMENT_B, (self.LONG, 0, 0), (0, 0, 1), times)
+
+class Dome(Movement):
+    def createHorizonPolyInserts(self):
+        s = []
+        extp = []
+        cpp = []
+        edges = self.edges
+        for i in range(int(len(self.edges)/2)):
+            p = self.polygon(SIDES, OR+100, (self.LONG, 0, H1))
+            extp.append(self.extrude(p, (0, 1, 0), WOOD[0], vis=False))
+            cpp.append(self.rotate(extp[i], self.SEGMENT_B, (self.LONG, 0, 0), (0, 0, 1), 1))
+            s.append(self.surface(edges[i], edges[i+int(len(edges)/2)]))
+
+        bs = self.extrudeHorizonPolyInserts(s)
+        s1 = self.cutObjects(bs, extp)
+        s = self.cutObjects(s1, cpp)
+        self.qArray(s, self.QUARTER-1)
+
+    def createLONGHorizonBar(self):
+        if not LONG: return
+        s = self.surface(self.roofHor[0], self.roofHor[1])
+        f = self.extrude(s, (0,1,0), WOOD[0])
+        self.rotate([f], self.SEGMENT_B, (0, 0, H1), (-1, 0, 0), self.QUARTER)
+        self.moveH1ToZero(f)
+
+    def createQVerticalPolygonBar(self):
+        self.surfaceAndExtrudeQVertivcalWall(self.roofQPoly)
+
+    def createH1WallBar(self):
+        if not H1: return None, None
+        return self.surfaceAndExtrudeQVertivcalWall(self.h1Wall)
+
+    def createBottomHorizonBar(self, walls):
+        if not H1: return
+        s = self.surface(self.bottom[0], self.bottom[1])
+        e = self.extrude(s, (0, 0, 1), WOOD[1], sym=False)
+        f = self.rotate(walls[0], self.SEGMENT_B, (self.LONG,0,0), (0,0,1), 1)
+        backward = self.SEGMENT_B*self.QUARTER
+        f1 = self.rotate(walls[1], backward, (self.LONG,0,0), (0,0,-1), 1)
+        bb = self.cut(e, f, vis=True)
+        bb = self.cut(bb, f1)
+        self.qArray([bb], self.QUARTER-1)
+
+
+dome = Dome()
+dome.createWireFrame()
+dome.createHorizonPolyInserts()
+dome.createQVerticalPolygonBar()
+f, f1 = dome.createH1WallBar()
+dome.createBottomHorizonBar([f, f1])
+dome.createLONGHorizonBar()
