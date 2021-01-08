@@ -26,3 +26,5 @@ In current stage it works as calc for practical designs of buildings and for ove
 ###################################################################################
 ###################################################################################
 ```
+
+![dome_thorus](https://i.ibb.co/9qpVSw3/screenshot-2021-01-08-19-52-38.png)

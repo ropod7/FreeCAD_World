@@ -11,8 +11,8 @@
 
 # Root object params (mm):
 DETAILS   = int(16)  # Detalization in edges of polygon
-OR     = float(4500) # Outside R of polygon and carriage on X axis
-H1     = float(0) # Height of 1st 'floor' & carriage on Z (or 0)
+OR     = float(4200) # Outside R of polygon and carriage on X axis
+H1     = float(1500) # Height of 1st 'floor' & carriage on Z (or 0)
 LONG   = float(0) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
  CORNER = bool(True), # Inner side of thorus. Outside R of dome becomes inside R
