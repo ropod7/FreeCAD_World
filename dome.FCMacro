@@ -18,7 +18,7 @@ THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
  CORNER = bool(True), # Inner side of thorus. Outside R of dome becomes inside R
  DISC   = bool(True)  # Outer side of thorus. OR = OR*3
 ) # template of SpreadSheet system of object:
-ROWS    = int(DETAILS/4-1) # Number of rows revolving around Y axis (max: DETAILS/4)
+ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis (max: DETAILS/4)
 COLS    = int(DETAILS/4)   # Number of cols revolving around Z axis (max: DETAILS)
 
 # Material (mm):
@@ -26,14 +26,14 @@ BAR = tuple((50, 200))  # (Width, Height of wooden bar, pipe etc.)
 
 # Compound options:
 EXTEND   = bool(True)   # Root as open contour system (fill up long ext, cols etc.)
-COMPOUND = bool(True)  # Simple compounded object (if LONG: COLS <= DETAILS/2)
+COMPOUND = bool(False)  # Simple compounded object (if LONG: COLS <= DETAILS/2)
 
 # Movement (mm):
 ROTATE = dict( # Rotate compounded or extended object
- DO       = bool(True),     # Do rotate or not
+ DO       = bool(False),     # Do rotate or not
  ANGLE  =  float(180),      # Angle to rotate object
  CENTER = tuple((0, 0, 0)), # Center to rotate object (x, y, z)
- AXIS   = tuple((1, 0, 0)),  # Rotation axis (around x, around y, around z)
+ AXIS   = tuple((0, 0, 1)),  # Rotation axis (around x, around y, around z)
  COPY     = bool(True)      # Copy object to rotate
 )
 MOVE = dict( # Move compounded or extended object
