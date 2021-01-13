@@ -10,7 +10,7 @@ In current stage it works as calc for practical designs of buildings and for ove
 ## top view                                   _ /                                ##
 ##                                  ^     _ /                                    ##
 ##                DOME              | _ /             CORNER                     ##             DISC
-##     <-                        _  |                                    ->      ##
+##     <-                        _  |                                  <- ->     ##
 ##  y torsion     -----------,      | y axis                         y torsion   ##
 ##  |                 B   _ /*| B/2 |                                |           ##
 ##  |                 _ /******|    |                                |           ##

@@ -10,43 +10,43 @@
 ###############################################################################
 
 # Root object params (mm):
-DETAILS   = int(16)  # Detalization in edges of polygon
-OR     = float(4200) # Outside R of polygon and carriage on X axis
-H1     = float(1500) # Height of 1st 'floor' & carriage on Z (or 0)
-LONG   = float(0) # Extension & carriage on Y axis (or 0)
+DETAILS   = int(16)  # Detalization in edges of polygon [must be divisible by 4]
+OR     = float(3900) # Outside R of polygon & carriage on X axis
+H1     = float(2000) # Height of 1st 'floor' & carriage on Z (or 0)
+LONG   = float(3000) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
- CORNER = bool(True), # Inner side of thorus. Outside R of dome becomes inside R
- DISC   = bool(True)  # Outer side of thorus. OR = OR*3
+ CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
+ DISC   = bool(False)  # Outer side of thorus. OR = OR*3
 ) # template of SpreadSheet system of object:
 ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis (max: DETAILS/4)
-COLS    = int(DETAILS/4)   # Number of cols revolving around Z axis (max: DETAILS)
+COLS    = int(DETAILS)   # Number of cols revolving around Z axis (max: DETAILS)
 
 # Material (mm):
-BAR = tuple((50, 200))  # (Width, Height of wooden bar, pipe etc.)
+BAR = tuple((50, 200))  # (Width, Height) of wooden bar, pipe etc: = [Width < Height]
 
 # Compound options:
-EXTEND   = bool(True)   # Root as open contour system (fill up long ext, cols etc.)
+EXTEND   = bool(False)   # Root as open contour system (fill up long ext, cols etc.)
 COMPOUND = bool(False)  # Simple compounded object (if LONG: COLS <= DETAILS/2)
 
 # Movement (mm):
 ROTATE = dict( # Rotate compounded or extended object
  DO       = bool(False),     # Do rotate or not
- ANGLE  =  float(180),      # Angle to rotate object
- CENTER = tuple((0, 0, 0)), # Center to rotate object (x, y, z)
- AXIS   = tuple((0, 0, 1)),  # Rotation axis (around x, around y, around z)
- COPY     = bool(True)      # Copy object to rotate
+ ANGLE  =  float(360/2),     # Angle to rotate object
+ CENTER = tuple((0, 0, 0)), # Center of axis to rotate object (x, y, z)
+ AXIS   = tuple((0, 1, 0)),  # Rotation axis (around x, around y, around z)
+ COPY     = bool(False)      # Copy object to rotate
 )
 MOVE = dict( # Move compounded or extended object
  DO       = bool(False),    # Do move or not
- VECTOR = tuple((10000, 10000, 1000)), # Vector to move object (x, y, z)
- COPY     = bool(True)     # Copy object to move
+ VECTOR = tuple((0, 0, 5400)), # Vector to move object (x, y, z)
+ COPY     = bool(False)     # Copy object to move
 )
 
 # Extra options:
 WIREFRAME = bool(False)      # To reproduce or hide wireframe
 ROOT      = bool(True)       # To show just wireframe if reproduced
+PRINT3D  = tuple((0, 0))     # Scale object to 3D printer bed. if > 0 and COMPOUND: do
 CLEANUP   = bool(True)       # Clean up document before build [True] or False
-PRINT3D  = tuple((190, 190)) # Scale object to 3D printer bed (mm)
 
 """
 
@@ -63,7 +63,7 @@ PRINT3D  = tuple((190, 190)) # Scale object to 3D printer bed (mm)
 ## top view                                   _ /                                ##
 ##                                  ^     _ /                                    ##
 ##                DOME              | _ /             CORNER                     ##             DISC
-##     <-                        _  |                                    ->      ##
+##     <-                        _  |                                  <- ->     ##
 ##  y torsion     -----------,      | y axis                         y torsion   ##
 ##  |                 B   _ /*| B/2 |                                |           ##
 ##  |                 _ /******|    |                                |           ##
@@ -92,15 +92,12 @@ PRINT3D  = tuple((190, 190)) # Scale object to 3D printer bed (mm)
 assert not DETAILS % 4 and DETAILS, "DETAILS not in range, or empty (must be divisible by 4)"
 assert OR,                          "Empty Radius definition"
 assert BAR[0] and BAR[1],           "Empty cell[/s] in BAR definition"
-assert OR > BAR[1] * 5,             "Check out BAR definition (OR TOO LOW RADIUS)"
-assert BAR[0] < BAR[1],             "Wooden Bar width must be lower than high side"
+assert BAR[0] < BAR[1],             "BAR width must be lower than BAR height"
 h =  BAR[1] + BAR[0]/2
 assert H1 >= h or not H1,           "H1 must be higher than %smm (wooden bar height+width/2)" % h
 
-import os, sys
 import math
 from collections.abc import MutableMapping
-from PySide import QtCore
 
 # BEGIN: Trigonometrical Common Geometry
 
@@ -142,9 +139,6 @@ class Trigon(object):
 
     def rightHypothenuse(self, cathetus):
         return self.rightHypothenuseByB(cathetus, 90.0-self.DETAIL_A)
-
-    def isoscelesSide(self, b, B):
-        return b / (2 * self.sin(B/2.0))
 
     def isoscelesBase(self, Or):
         return Or * 2 * (self.cos((self.HALF_CIRCLE-self.DETAIL_B)/2.0))
@@ -755,12 +749,6 @@ class RootMovement(RootGeom):
         MacroRoot.__init__(self, cup=cup)
         self.dirY = 1 if self.pointSystem in ThorusPoints._roots_[1:] else -1
 
-    def pArrayXB(self, objs, n, **kwargs):
-        angle = self.DETAIL_B
-        zero = (0, 0, self.ZERO_Z)
-        axis = (-1, 0, 0)
-        return self.rotate(objs, angle, zero, axis, n, **kwargs)
-
     def pArrayYB(self, objs, n, **kwargs):
         angle = self.DETAIL_B
         zero = (self.ZERO_X, 0, self.ZERO_Z)
@@ -772,13 +760,6 @@ class RootMovement(RootGeom):
         zero = (0, 0, 0)
         axis = (0, 0, 1)
         return self.rotate(objs, angle, zero, axis, n, **kwargs)
-
-    def longArrayZ180(self, objs, **kwargs):
-        return self.rotate(objs,180,(0,self.ZERO_Y/2,0),(0,0,1),1,**kwargs)
-
-    def squaredArray(self, objs, n, s=False, **kwargs):
-        half = 0 if not self.ZERO_Y or s else self.ZERO_Y/2
-        return self.rotate(objs,90,(half,-half,0),(0,0,1),n,**kwargs)
 
     def compoundArray(self, objs, angle, n, **kwargs):
         hypB = -90-angle/2
@@ -816,13 +797,13 @@ class RootMovement(RootGeom):
         amount = self.insertionAmount
         return self.vLongArray(obj, n=amount-1, **kwargs)
 
-    def _markingArray(self, wire1, wire2):
+    def _markingArray(self, wire1, wire2, **kwargs):
         wire1.extend(wire2)
-        wire1.extend(self.squaredArray(wire2, 3, s=True))
+        wire1.extend(self.rotate(wire2, 90, (0,0,0),(0,0,1),3,**kwargs))
         return self.move(wire1, 0,self.ZERO_Y,0, 1) if self.long else wire1
 
     def _moveBottomToZero(self, b):
-        if H1: return []
+        if self.h1: return []
         x, y, z = 0, 0, BAR[0]/2
         return self.move(b, x, y, z, 1, cp=False)
 
@@ -879,15 +860,18 @@ class RootMovement(RootGeom):
         Torsion mechanism to give thickness to horison surfaces of Root poly.
         Revolves around Z axis by angle B/2 and Y axis by angle B.
         """
-        zero_z, a_z = (0, 0, self.ZERO_Z), (0,0,1)
         zero_y, a_y = self.__zeroYAxisToTurn()
         angle = self.DETAIL_B
         n = self.__numberToTurn(self.rows - i)
         if not backw:
-            obj =  self.rotate(obj, -angle/2, zero_z, a_z, 1, cp=False)
+            obj =  self.__turnToFromZero(obj, -angle/2)
             return self.rotate(obj,  angle*n, zero_y, a_y, 1, cp=False)
-        obj =  self.rotate(obj, -angle*n, zero_y, a_y, 1, cp=False)
-        return self.rotate(obj,  angle/2, zero_z, a_z, 1, cp=False)
+        obj = self.rotate(obj,  -angle*n, zero_y, a_y, 1, cp=False)
+        return self.__turnToFromZero(obj, angle/2)
+
+    def __turnToFromZero(self, obj, angle):
+        zero_z, a_z = (0, 0, self.ZERO_Z), (0,0,1)
+        return self.rotate(obj, angle, zero_z, a_z, 1, cp=False)
 
     def __numberToTurn(self, ny):
         expr = self.rows is self.POLY_QUARTER
@@ -895,7 +879,7 @@ class RootMovement(RootGeom):
             return ny-1
         elif self.pointSystem is ThorusPoints._roots_[-1]:
             return ny if not expr else ny-1
-        else: return ny
+        return ny
 
     def __zeroYAxisToTurn(self):
         if self.pointSystem is TwoPoints._root_:
@@ -959,24 +943,19 @@ class RootWireFrame(RootBlocks):
     _btm_ = str('bottom')
     _sht_ = str('short')
 
-    def _createWoodenWireFrame(self, ny, vis=False):
-        assert ny < self.POLY_QUARTER + 1 and ny >= 0, \
-            "check number of sigments revolving around Y axis"
+    def _createRootWireFrame(self, ny, vis=False):
         self.wfVisibility = vis
-        wsW = self.rightHypothenuse(BAR[1])
-        wsH = self.rightHypothenuse(BAR[0])
-        for w in [0, wsW, wsH]:
+        ws = self.rightHypothenuse(BAR[1])
+        for w in [0, ws]:
             self.POINTS.append( self.polyPoints(self.OR-w) )
-            if w != wsW:
-                self.__bottom()
-            if w == wsH: break
             self._createWireFrame(ny, w)
             self.__horisonShort(w, self.rows)
-        if not self.pointSystem is ThorusPoints._roots_[-1]:
-            self.__marking()
+            self.__bottom(w)
+        self.__marking()
         return self.get(Blocks._wfr_)
 
     def __marking(self):
+        if self.pointSystem is ThorusPoints._roots_[-1]: return
         zl = [0, self.ZERO_Z or BAR[0]]
         wire1 = self.wire([(0, 0, z) for z in zl], vis=True)
         self.append( __class__._mp_, wire1 )
@@ -985,10 +964,11 @@ class RootWireFrame(RootBlocks):
         self.append( __class__._mp_, wires )
         return self.get( __class__._mp_ )
 
-    def __bottom(self):
+    def __bottom(self, w):
         if not H1: return []
+        ws = self.rightHypothenuse(BAR[0]) if w else 0
         tp = __class__._btm_ + self.pointSystem
-        p = self.POINTS[-1][:2]
+        p = self.polyPoints(self.OR - ws)[:2]
         vis = self.wfVisibility
         wire = self.wire([self._pntBtmMnr(x,y) for x,y in p], vis=vis)
         return self.appendWfr(tp, wire)
@@ -999,8 +979,7 @@ class RootWireFrame(RootBlocks):
         dim, amount = self.insertionUnits(self.ZERO_Y)
         w1 = w if not w else BAR[1]
         points = self.extensionPoints(-dim, w1)
-        vis = self.wfVisibility
-        wire = self.wire( [ *points ], vis=vis )
+        wire = self.wire( [ *points ], vis=self.wfVisibility )
         return self.appendWfr(tp, wire)
 
 class ModelLayer(RootWireFrame):
@@ -1071,7 +1050,7 @@ class Root(ModelLayer):
         super().__init__(tp, *args, **kwargs)
 
     def wireFrame(self, ny, **kwargs):
-        return self._createWoodenWireFrame(ny, **kwargs)
+        return self._createRootWireFrame(ny, **kwargs)
 
     def _build(self):
         wfr = self.get(Blocks._wfr_)
@@ -1112,7 +1091,8 @@ class Root(ModelLayer):
     def __verticalPolyBar(self):
         tp = __class__._vplb_
         vplwf = WireFrame._vpl_ + self.pointSystem
-        if not len(self.getWfr(vplwf)): return self.extendRoot(tp, [])
+        if not len(self.getWfr(vplwf)):
+            return self.extendRoot(tp, [])
         v = self._extrudeVertical( self.getWfr(vplwf) )
         self.extendRoot(tp, v)
 
@@ -1179,7 +1159,7 @@ class ThorusRoot(Root):
         return self.get(Blocks._roo_)
 
     def _wireFrame(self, ny, **kwargs):
-        return self._createWoodenWireFrame(ny, **kwargs)
+        return self._createRootWireFrame(ny, **kwargs)
 
     def _cornWireFrame(self, ny, **kwargs):
         self.pointSystem = Root._corn_
@@ -1346,10 +1326,12 @@ class Extend(object):
         if not self.long: return
         roof = obj.getRoot(Root._lnge_).copy()
         name = __class__._roof_
-        obj.extendExt(name, roof)
-        if not obj.pointSystem is __class__._thor_: return
         rows = self.rows
-        if rows is obj.POLY_QUARTER: return
+        expr = rows is obj.POLY_QUARTER
+        if not obj.pointSystem is TwoPoints._root_ or not expr:
+            obj.extendExt(name, roof)
+        if not obj.pointSystem is __class__._thor_: return
+        elif expr: return
         elif not rows:
             args = (RootBlocks._ext_,name,roof)
             return self.__moveBarToThor(*args)
@@ -1391,7 +1373,9 @@ class Extend(object):
     def __collectAllExt(self, obj):
         if not self.long: return
         for n in [__class__._vert_,__class__._hori_,__class__._roof_]:
-            obj.extendExt(__class__._alle_, obj.getExt(n).copy())
+            try:
+                obj.extendExt(__class__._alle_, obj.getExt(n).copy())
+            except AttributeError: continue
 
     def __emptyVerticals(self):
         return not self.rows and not self.h1
@@ -1485,6 +1469,20 @@ class Wheel(Compound): pass
 #
 ###################################################################################
 
+def convert(l, h1, Or, b, d, th, comp, p3d):
+    """Converter for 3D printer"""
+    def s(val, sc): return val*sc
+    prnt = p3d[0] > 0 and p3d[1] > 0
+    if not comp or not prnt: return (l, h1, Or, d), b
+    prntdim = p3d[0] if p3d[1] > p3d[0] else p3d[1]
+    if th.get('DISC'):
+        sc = prntdim / (l + Or*3*2)
+    elif not th.get('DISC') and th.get('CORNER'):
+        sc = prntdim / (l + Or*2*2)
+    else:
+        sc = prntdim / (l + Or*2)
+    return (s(l,sc), s(h1,sc), s(Or,sc), d), tuple((s(b[0], sc), s(b[1], sc)))
+
 def buildObject(OBJ, obj, s, root, COLS, EXTEND, COMPOUND, ROTATE, MOVE ):
     if not OBJ is str(s): return []
     o = None
@@ -1506,7 +1504,7 @@ def buildObject(OBJ, obj, s, root, COLS, EXTEND, COMPOUND, ROTATE, MOVE ):
 
 if __name__ == "__main__":
 
-    args = (LONG, H1, OR, DETAILS)
+    args, BAR = convert(LONG, H1, OR, BAR, DETAILS, THORUS, COMPOUND, PRINT3D)
 
     if       THORUS.get('CORNER') and not THORUS.get('DISC'):
           obj = CornerRoot(*args, cup=CLEANUP)
@@ -1525,7 +1523,7 @@ if __name__ == "__main__":
           OBJ = str('DOME')
 
     obj.wireFrame(ROWS, vis=WIREFRAME)
-    if not ROOT: exit(1)
+    if not ROOT: exit(0)
 
     obj.root()
 
