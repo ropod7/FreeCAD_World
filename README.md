@@ -2,7 +2,7 @@
 Macro system of FreeCAD World
 
 In front of you a machine tool for the production of any FreeCAD Macros of any complexity with increased accuracy of calculation of target objects of polygonal and orthogonal geometry.
-In current stage it works as calc for practical designs of buildings and for overall development of kids, students, individuals and households.
+At current stage it works as calc for practical designs of buildings and for overall development of kids, students, individuals and households.
 
 ```Python
 ###################################################################################
@@ -29,5 +29,6 @@ In current stage it works as calc for practical designs of buildings and for ove
 [![Macro Video](https://img.youtube.com/vi/GIyBWlv_GzM/0.jpg)](https://www.youtube.com/watch?v=GIyBWlv_GzM)
 
 ![dome_thorus](https://i.ibb.co/9qpVSw3/screenshot-2021-01-08-19-52-38.png)
+![dome_thorus_mono](https://i.postimg.cc/x1NkxKt8/screenshot-2021-01-30-19-01-01.png)
 
 # dependencies: FreeCAD + python3 build
