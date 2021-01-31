@@ -3,32 +3,14 @@ Macro system of FreeCAD World
 
 In front of you a machine tool for the production of any FreeCAD Macros of any complexity with increased accuracy of calculation of target objects of polygonal and orthogonal geometry.
 At current stage it works as calc for practical designs of buildings and for overall development of kids, students, individuals and households.
+## The Principle
+![principle](https://i.ibb.co/Kqkh0Ts/screenshot-2021-01-31-19-46-12.png)
 
-```Python
-###################################################################################
-#######################################################################клинопись###
-## top view                                   _ /                                ##
-##                                  ^     _ /                                    ##
-##                DOME              | _ /             CORNER                     ##             DISC
-##     <-                        _  |                                  <- ->     ##
-##  y torsion     -----------,      | y axis                         y torsion   ##
-##  |                 B   _ /*| B/2 |                                |           ##
-##  |                 _ /******|    |                                |           ##
-##  |        OR   _ /****** A **| <---[ base of isosceles triangle ] |           ##
-##  |         _ /****************|  | [  and base of construction  ] |           ##
-##  |     _ /*********************| |                                |           ##
-##  |  _/***** B ******************|| 90°      OR*2 on x axis        |           ##
-## 0|------------------------------>|------------------------------->|           ##
-##  z [ left ] torsion for DOME and THORUS at x,y: [ 0 mm ]                      ##
-## _____________________________________________________________________________ ##
-##                                                                               ##
-##       B = 360°/DETAILS          A + B/2 = 90°        A = (180° - B)/2         ##
-###################################################################################
-###################################################################################
-```
+(Check out principle at: docs/principle.FCStd)
+
 [![Macro Video](https://img.youtube.com/vi/GIyBWlv_GzM/0.jpg)](https://www.youtube.com/watch?v=GIyBWlv_GzM)
 
 ![dome_thorus](https://i.ibb.co/9qpVSw3/screenshot-2021-01-08-19-52-38.png)
-![dome_thorus_mono](https://i.postimg.cc/x1NkxKt8/screenshot-2021-01-30-19-01-01.png)
+![dome_thorus_mono](https://i.ibb.co/1zMHqPQ/screenshot-2021-01-31-19-59-29.png)
 
-# dependencies: FreeCAD + python3 build
+## dependencies: FreeCAD + python3 build

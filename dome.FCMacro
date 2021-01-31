@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# Macros source: https://github.com/ropod7/FreeCAD_World
+
 ###############################################################################
 #         ____   _____  __   _______ __  _____    _
 #        /  __\ /  _  \|  \_| |  ___|  |/ ____\  |_|
@@ -10,21 +12,21 @@
 ###############################################################################
 
 # Root object params (mm):
-DETAILS  = int(16)  # Detalization of polygon [must be divisible by 4 and min is 4 (otherwise experimental)]
+DETAILS  = int(24)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
 OR     = float(3900) # Outscribed R of polygon & carriage on X axis
-H1     = float(2000) # Height of 1st 'floor' & carriage on Z (or 0)
-LONG   = float(2000) # Extension & carriage on Y axis (or 0)
+H1     = float(3000) # Height of 1st 'floor' & carriage on Z (or 0)
+LONG   = float(3000) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
- CORNER = bool(True), # Inner side of thorus. Outside R of dome becomes inside R
- DISC   = bool(True)  # Outer side of thorus. OR = OR*3
+ CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
+ DISC   = bool(False)  # Outer side of thorus. OR = OR*3
 ) # template of SpreadSheet system of object:
 ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis   (max: DETAILS/4)
-COLS    = int(DETAILS)   # Number of cols revolving around Z axis (max: DETAILS)
+COLS    = int(DETAILS/2)   # Number of cols revolving around Z axis (max: DETAILS)
 
 # Materials (mm):
 # NB: [!!!] more DETAILS and higher OR returns more complexity in case of MONO thickness. [!!!]
-MONO   = float(0)       # Stone/concrete system (wall thickness). if MONO > 0: not BAR
-BAR   = tuple((50, 200))  # (Width, Height) of wooden bar, pipe, sheet metl. etc: == [Width < Height]
+MONO   = float(0)       # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not BAR
+BAR   = tuple((50, 200))  # (Width, Height) of wooden bar/pipe/sheet metl. etc: == [Width < Height]
 # FRAME = dict( # BAR Root build as class FRAME with additional options (if MONO > 0: not FRAME):
 # BAR    = tuple((50, 200)),  # (Width, Height) of wooden bar, pipe, sheet metl. etc: !! [Width < Height]
 # CONTOUR   = int(50),        # Ventilated contour (just space between layers).
@@ -119,6 +121,7 @@ from collections.abc import MutableMapping
 
 class Trigon(object):
     def __init__(self, r, d):
+        "Receives OR and DETAILS definitions"
         assert isinstance(r, float), "TypeError: r (OR) must be float"
         self.OR = r
         self.CIRCLE = 360
@@ -223,24 +226,22 @@ class TwoPoints(Trigon):
 
 class ThorusPoints(TwoPoints):
     """
-    Additional proportionaly alongated point system to extend poly points
+    Additional proportionaly elongated point system to extend poly points
       into their proper positions in case of toroidal building geometry.
     """
     _roots_ = [TwoPoints._root_, str('corner'), str('disc'), str('thorus')]
 
     def __init__(self, tp, r, *args, **kwargs):
-        "Receives type, OR, DETAILS, LONG and H1 definitions"
+        "Receives type, OR definitions"
         super().__init__(r, *args, **kwargs)
         self.pointSystem = tp
-        x = r*2 if self.alongated else 0
+        x = r*2 if self.elongated else 0
         self.ZERO_X =  x        # To measure corners on X carriage
 
     def __fixedXYRoots(self, x, y):
         """
-        First couple of root X and Y points in case of Y > 0, to find
-        complete proportions of toroidal trigonometry in case of:
-
-            DETAILS / 4 % 4 == 0.
+        First couple of root X and Y points in case of Y > 0,
+        to find complete proportions of toroidal trigonometry.
         """
         root_x = self.oPOINTS[0][1][0]
         root_y = self.oPOINTS[0][1][1]
@@ -324,13 +325,14 @@ class ThorusPoints(TwoPoints):
         return self.pointSystem is __class__._roots_[3]
 
     @property
-    def alongated(self):
+    def elongated(self):
         return self.pointSystem in __class__._roots_[1:]
 
 class ExtensionPoints(ThorusPoints):
     _root_ = str('long')
 
     def __init__(self, tp, l, h, *args, **kwargs):
+        "Receives type, LONG and H1 definitions"
         assert isinstance(l, float), "TypeError: l (LONG) must be float"
         assert isinstance(h, float), "TypeError: h (H1)   must be float"
         super().__init__(tp, *args, **kwargs)
@@ -396,6 +398,7 @@ import Draft
 
 class MacroRoot(object):
     def __init__(self, cup=False):
+        "Receives CLEANUP definition"
         self.CLEANUP = cup
         self.cleanUp()
         self.pl = FreeCAD.Placement()
@@ -476,14 +479,12 @@ class BaseTools(MacroRoot):
         s = self.fcDoc.addObject('Part::RuledSurface', 'Surface')
         self.fcDoc.ActiveObject.Curve1=(edge1,['Edge1'])
         self.fcDoc.ActiveObject.Curve2=(edge2,['Edge1'])
-        self.recompute()
         return self._setVisibility(s, vis)
 
     def Cut(self, base, tool, bvis=False):
         c = self.fcDoc.addObject('Part::Cut', 'Cut')
         c.Base = self._getFcObject(base)
         c.Tool = self._getFcObject(tool)
-        self.recompute()
         self._setVisibility(base, bvis)
         self._setVisibility(tool, False)
         return c
@@ -496,7 +497,6 @@ class BaseTools(MacroRoot):
         e.LengthFwd = height
         e.Solid = True
         e.Symmetric = s
-        self.recompute()
         self._setVisibility(surface, False)
         return self._setVisibility(e, vis)
 
@@ -507,20 +507,17 @@ class BaseTools(MacroRoot):
         loft.Solid = True
         loft.Ruled = ruled
         loft.Closed = closed
-        self.recompute()
         [self._setVisibility(f, False) for f in faces]
         return loft
 
     def Rotate(self, objs, A, z, a, cp=True, vis=True):
         Draft.rotate(objs,A,self.vector(*z),axis=self.vector(*a),copy=cp)
-        self.recompute()
         objs = self.roots[-len(objs):] if cp else objs
         [self._setVisibility(o, vis) for o in objs]
         return objs
 
     def Move(self, objs, x, y, z, cp=True, vis=True):
         Draft.move(objs, self.vector(x, y, z), copy=cp)
-        self.recompute()
         objs = self.roots[-len(objs):] if cp else objs
         [self._setVisibility(o, vis) for o in objs]
         return objs
@@ -537,24 +534,28 @@ class Model(BaseTools):
         assert isinstance(tool, list) and len(tool) is 1, "one tool must be in list"
         r = list()
         [ r.extend(self.__cut(base, tool, **kwargs)) for base in bases ]
+        self.recompute()
         return r
 
     def surface(self, e1, e2, **kwargs):
         assert len(e1) and len(e1) is len(e2), "empty edges list or lists not equal"
         r = list()
         [ r.extend(self.__surface([e1[i],e2[i]],**kwargs)) for i in range(len(e1)) ]
+        self.recompute()
         return r
 
     def extrude(self, surfaces, *args, **kwargs):
         assert isinstance(surfaces, list) and len(surfaces), "bases must be not empty list"
         r = list()
         [ r.extend(self.__extrude(s, *args, **kwargs)) for s in surfaces ]
+        self.recompute()
         return r
 
     def loft(self, f1, f2, **kwargs):
         assert len(f1) and len(f1) is len(f2), "empty faces list or lists not equal"
         l = list()
         [ l.extend(self.__loft([f1[i],f2[i]],**kwargs)) for i in range(len(f1)) ]
+        self.recompute()
         return l
 
     def wiresPoints(self, wires):
@@ -590,6 +591,7 @@ class Movement(Model):
         obj = list()
         for i in range(1, times+1):
             obj.extend(self.Rotate(objs, angle*i, zero, axis, cp=cp, **kwargs))
+        self.recompute()
         return obj
 
     def move(self, objs, x, y, z, times, vis=True, **kwargs):
@@ -599,6 +601,7 @@ class Movement(Model):
         for i in range(1, times+1):
             xi, yi, zi = x*i, y*i, z*i
             obj.extend(self.Move(objs, xi, yi, zi, **kwargs))
+        self.recompute()
         return obj
 
 # END: FreeCAD system covers
@@ -610,7 +613,7 @@ class ObjectMovement(Movement):
     def __init__(self, *args, cup=False, **kwargs):
         Blocks.__init__(self, *args, **kwargs)
         MacroRoot.__init__(self, cup=cup)
-        self.__dirY = 1 if self.alongated else -1
+        self.__dirY = 1 if self.elongated else -1
 
     def xMirror(self, objs, y=0, **kwargs):
         angle = 180
@@ -839,7 +842,7 @@ class Materials(list, ProductionCalc):
     def __init__(self, width=0, height=0, thickn=0, RGB='#ffffff', **kwargs):
         assert width and height or thickn, "Undefined material dimensions"
         assert isinstance(RGB, str), "TypeError: color is str"
-        assert RGB.startswith('#'),      "TypeError: wrong RGB format"
+        assert RGB.startswith('#'),  "TypeError: wrong RGB format"
         self.__frame = (width, height or thickn)
         self.__RGB = RGB
         return super().__init__(self.__frame)
@@ -861,12 +864,11 @@ class Materials(list, ProductionCalc):
 
     @property
     def RGB(self):
-        return self.__color
+        return self.__RGB
 
 class WireFrame(ObjectMovement, Blocks):
     _h1_  = str('h1')
     _vpl_ = str('vPoly')
-    _tmp_ = str('vTmpPoly')
     _mp_  = str('marking')
 
     def _marking(self, MTL):
@@ -890,9 +892,7 @@ class WireFrame(ObjectMovement, Blocks):
 
     def _verticalPoly(self, ny, mtl, horison=True):
         tp = __class__._vpl_ + self.pointSystem + mtl
-        if self._checkInWfr(ny):
-            "creates empty list of vPoly frame if no rows or thorus"
-            return self.extendWfr( tp, [ ] )
+        if self._checkInWfr(ny): return list()
         points = self.oPOINTS[-1][:2]
         operator = self.appendWfr if horison else self.extendWfr
         operator(tp, self.wire([
@@ -929,7 +929,7 @@ class Root(WireFrame):
         assert ny <= self.DETAILS/4, "AmountError: ny (ROWS) not in range"
         assert nz <= self.DETAILS,   "AmountError: nz (COLS) not in range"
         self.__rows = ny   # number rows
-        self.__cols = nz
+        self.__cols = nz   # number cols
 
     def _build(self):
         wfr = self.get(Blocks._wfr_)
@@ -945,13 +945,13 @@ class Root(WireFrame):
         return self.__cols
 
     @rows.setter
-    def rows(self, amount):
-        self.__rows = amount
+    def rows(self, number):
+        self.__rows = number
         return self.__rows
 
     @cols.setter
-    def cols(self, amount):
-        self.__cols = amount
+    def cols(self, number):
+        self.__cols = number
         return self.__cols
 
 # END: Object creation system
@@ -1003,7 +1003,7 @@ class MonoRoot(MonoWireFrame):
     _extp_ = str('extpoly') + _mtrl_
 
     def __init__(self, tp, thickn, *args, **kwargs):
-        assert thickn, "No mono thickness defined"
+        assert thickn, "No Mono thickness defined"
         self.MTL = Materials(thickn=thickn, **kwargs)
         super().__init__(tp, *args, **kwargs)
 
@@ -1994,7 +1994,7 @@ def convert(MTL, lng, h1, Or, dets, thor, comp, p3d):
         mtl = [s(MTL, scale)]
     return (*mtl, *converted)
 
-def buildObject(OBJ, obj, s, root, EXTEND, COMPOUND, ROTATE, MOVE ):
+def buildObject(OBJ, obj, s, root, EXTEND, COMPOUND, ROTATE, MOVE):
     if not OBJ is str(s): return list()
     o = None
     if EXTEND:
