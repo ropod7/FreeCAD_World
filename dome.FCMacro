@@ -15,17 +15,17 @@
 DETAILS  = int(16)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
 OR     = float(3900) # Outscribed R of polygon & carriage on X axis
 H1     = float(2000) # Height of 1st 'floor' & carriage on Z (or 0)
-LONG   = float(3000) # Extension & carriage on Y axis (or 0)
+LONG   = float(0) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
  CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
  DISC   = bool(False)  # Outer side of thorus. OR = OR*3
 ) # template of SpreadSheet system of object:
 ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis   (max: DETAILS/4)
-COLS    = int(DETAILS/2)   # Number of cols revolving around Z axis (max: DETAILS)
+COLS    = int(DETAILS)   # Number of cols revolving around Z axis (max: DETAILS)
 
 # Materials (mm):
 # NB: [!!!] more DETAILS and higher OR returns more complexity in case of MONO thickness. [!!!]
-MONO   = float(0)       # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not BAR
+MONO   = float(300)       # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not BAR
 BAR   = tuple((50, 200))  # (Width, Height) of wooden bar/pipe/sheet metl. etc: == [Width < Height]
 # FRAME = dict( # BAR Root build as class FRAME with additional options (if MONO > 0: not FRAME):
 # BAR    = tuple((50, 200)),  # (Width, Height) of wooden bar, pipe, sheet metl. etc: !! [Width < Height]
@@ -42,10 +42,10 @@ COMPOUND = bool(True)   # Simple compounded object (if LONG: COLS <= DETAILS/2)
 ROTATE = dict( # Rotate compounded or extended object
  DO       = bool(False),     # Do rotate or not
  ANGLE  =  float(360/DETAILS),     # Angle to rotate object
- CENTER = tuple((OR*3, OR*3, 0)), # Center of axis to rotate object (x, y, z)
+ CENTER = tuple((OR*4, OR*4, 0)), # Center of axis to rotate object (x, y, z)
  AXIS   = tuple((0, 0, 1)),  # Rotation axis (around x, around y, around z)
  COPY     = bool(True),     # Copy object to rotate
- TIMES     = int(4)          # How many pcs to COPY. eg. if COPY: polar array.
+ TIMES     = int(DETAILS)          # How many pcs to COPY. eg. if COPY: polar array.
 )
 MOVE = dict( # Move compounded or extended object
  DO       = bool(False),    # Do move or not
@@ -114,6 +114,7 @@ maxrows = int(DETAILS/4)
 ROWS = maxrows if ROWS > maxrows else ROWS
 COLS = DETAILS if COLS > DETAILS else COLS
 
+import _thread
 import math
 from collections.abc import MutableMapping
 
@@ -135,7 +136,7 @@ class Trigon(object):
         even =  int(d/4)*self.DETAIL_B
         self.DETAIL_BO = self.HALF_CIRCLE/2 - even
 
-    # Semantics of Trigonometry from: https://tinyurl.com/y5tdg7eg
+    # Semantics of Trigonometry from: https://tinyurl.com/yyrxfd84
 
     def rightSideB_ByA(self, c, A):
         return c * self.__cos(A)
@@ -426,11 +427,11 @@ class MacroRoot(object):
 
     def remove(self, obj):
         self.appDoc.removeObject(obj)
-        self.recompute()
 
     def cleanUp(self):
         if not len(self.roots) or not self.CLEANUP: return
         [self.remove(obj.Name) for obj in self.roots]
+        # self.recompute()
         return self.cleanUp()
 
     def _setVisibility(self, obj, vis):
@@ -465,7 +466,7 @@ class BaseTools(MacroRoot):
         p = [ self.vector(*ps) for ps in points ]
         w = Draft.makeWire(p,placement=self.pl,closed=False,face=False,**kwargs)
         self.autogroup(w)
-        self.recompute()
+        # self.recompute()
         self._setVisibility(w, vis)
         return w
 
@@ -473,7 +474,7 @@ class BaseTools(MacroRoot):
         self.pl.Base = self.vector(*placement)
         p =  Draft.makePolygon(n,placement=self.pl,inscribed=i,face=f,support=s,**kwargs)
         self.autogroup(p)
-        self.recompute()
+        # self.recompute()
         return self._setVisibility(p, vis)
 
     def Surface(self, edges, vis=False):
@@ -537,33 +538,33 @@ class Model(BaseTools):
         assert isinstance(tool, list) and len(tool) is 1, "one tool must be in list"
         r = list()
         [ r.extend(self.__cut(base, tool, **kwargs)) for base in bases ]
-        self.recompute()
+        # self.recompute()
         return r
 
     def surface(self, e1, e2, **kwargs):
         assert len(e1) and len(e1) is len(e2), "empty edges list or lists not equal"
         r = list()
         [ r.extend(self.__surface([e1[i],e2[i]],**kwargs)) for i in range(len(e1)) ]
-        self.recompute()
+        # self.recompute()
         return r
 
     def extrude(self, surfaces, *args, **kwargs):
         assert isinstance(surfaces, list) and len(surfaces), "bases must be not empty list"
         r = list()
         [ r.extend(self.__extrude(s, *args, **kwargs)) for s in surfaces ]
-        self.recompute()
+        # self.recompute()
         return r
 
     def loft(self, f1, f2, **kwargs):
         assert len(f1) and len(f1) is len(f2), "empty faces list or lists not equal"
         l = list()
         [ l.extend(self.__loft([f1[i],f2[i]],**kwargs)) for i in range(len(f1)) ]
-        self.recompute()
+        # self.recompute()
         return l
 
     def wiresPoints(self, wires):
         "Returns FreeCAD vectorized list of wire points"
-        self.recompute()
+        # self.recompute()
         points = list()
         obj = self.Object
         [ points.append([obj(w).Start, obj(w).End]) for w in wires ]
@@ -594,7 +595,7 @@ class Movement(Model):
         obj = list()
         for i in range(1, times+1):
             obj.extend(self.Rotate(objs, angle*i, zero, axis, cp=cp, **kwargs))
-        self.recompute()
+        # self.recompute()
         return obj
 
     def move(self, objs, x, y, z, times, vis=True, **kwargs):
@@ -604,7 +605,7 @@ class Movement(Model):
         for i in range(1, times+1):
             xi, yi, zi = x*i, y*i, z*i
             obj.extend(self.Move(objs, xi, yi, zi, **kwargs))
-        self.recompute()
+        # self.recompute()
         return obj
 
 # END: FreeCAD system covers
@@ -1835,7 +1836,7 @@ class MonoExtend(Compound):
 
     def _revHoriExtY(self, obj):
         expr = obj.rows and obj.long
-        pl = obj.getLft(MonoRoot._extp_).copy() if expr else list()
+        pl = obj.getLft(MonoRoot._extp_).copy()
         return super()._revHoriExtY(obj, pl) if len(pl) else list()
 
     def _moveExtHToThor(self, obj, tomove):
@@ -1851,6 +1852,9 @@ class MonoCompound(MonoExtend):
     def __init__(self, *args):
         super().__init__(*args)
         self._collectTotal(self.obj)
+
+    # def compound(self):
+        # self.obj.thread( super().compound )
 
 # END: Basic flexible Mono Root extends and compound
 
@@ -2004,18 +2008,19 @@ def buildObject(OBJ, obj, s, root, EXTEND, COMPOUND, ROTATE, MOVE):
         o = root(obj)
     if COMPOUND:
         o.compound()
+        # obj.recompute()
     if ROTATE.get('DO'):                # at first rotate
         angle  = ROTATE.get('ANGLE')
         center = ROTATE.get('CENTER')
         axis   = ROTATE.get('AXIS')
         copy   = ROTATE.get('COPY')
-        times  = ROTATE.get('TIMES')
+        times  = ROTATE.get('TIMES') if copy else 1
         o.rotate(angle, center, axis, times, copy)
     if MOVE.get('DO'):                  # next move
         vector = MOVE.get('VECTOR')
-        cp     = MOVE.get('COPY')
-        times  = MOVE.get('TIMES')
-        o.move(vector, times, cp)
+        copy   = MOVE.get('COPY')
+        times  = MOVE.get('TIMES') if copy else 1
+        o.move(vector, times, copy)
     return o
 
 if __name__ == "__main__" and CONFIG:
@@ -2047,6 +2052,7 @@ if __name__ == "__main__" and CONFIG:
     if not ROOT: exit(0)
 
     obj.root()
+    # obj.recompute()
 
     for o in ['DOME', 'CORNER', 'DISC', 'THORUS']:
         buildObject( OBJ, obj, o, COMP, EXTEND, COMPOUND, ROTATE, MOVE )
