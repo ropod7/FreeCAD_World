@@ -8,6 +8,8 @@ At current stage it works as calc for practical designs of buildings and for ove
 
 (Check out principle at: docs/principle.FCStd)
 
+YouTube presentation:
+
 [![Macro Video](https://img.youtube.com/vi/GIyBWlv_GzM/0.jpg)](https://www.youtube.com/watch?v=GIyBWlv_GzM)
 
 ![dome_thorus](https://i.ibb.co/9qpVSw3/screenshot-2021-01-08-19-52-38.png)

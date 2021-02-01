@@ -12,9 +12,9 @@
 ###############################################################################
 
 # Root object params (mm):
-DETAILS  = int(24)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
+DETAILS  = int(16)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
 OR     = float(3900) # Outscribed R of polygon & carriage on X axis
-H1     = float(3000) # Height of 1st 'floor' & carriage on Z (or 0)
+H1     = float(2000) # Height of 1st 'floor' & carriage on Z (or 0)
 LONG   = float(3000) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
  CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
@@ -128,49 +128,52 @@ class Trigon(object):
         self.HALF_CIRCLE = self.CIRCLE / 2.0
         self.DETAILS = d
         self.DETAIL_B = self.CIRCLE / d
+        self.DETAIL_HB = self.DETAIL_B/2
         self.POLY_QUARTER = int(d / 4)
         self.DETAIL_A = (self.HALF_CIRCLE-self.DETAIL_B) / 2.0
         self.__base_ = self.isoscelesBase(r)
         even =  int(d/4)*self.DETAIL_B
         self.DETAIL_BO = self.HALF_CIRCLE/2 - even
 
-    def cos(self, c):
-        return math.cos(math.radians(c))
-
-    def sin(self, c):
-        return math.sin(math.radians(c))
-
-    def tan(self, c):
-        return math.tan(math.radians(c))
-
     # Semantics of Trigonometry from: https://tinyurl.com/y5tdg7eg
 
     def rightSideB_ByA(self, c, A):
-        return c * self.cos(A)
+        return c * self.__cos(A)
 
     def rightSideB_ByAA(self, a, A):
-        return a / self.tan(A)
+        return a / self.__tan(A)
 
     def rightCathetusA_ByA(self, c, A):
-        return c * self.sin(A)
+        return c * self.__sin(A)
 
     def rightCathetusA_ByBA(self, b, A):
-        return b * self.tan(A)
+        return b * self.__tan(A)
 
-    def rightCathetusA_ByB(self, c, B):
-        return c * self.cos(B)
+    def rightCathetusA_ByB(self, c, HB):
+        "OR * cos(B/2)"
+        return c * self.__cos(HB)
 
-    def rightHypothenuseByB(self, a, B):
-        return a / self.cos(B)
+    def rightHypothenuseByB(self, a, HB):
+        "cathetus / cos(B/2)"
+        return a / self.__cos(HB)
 
     def rightHypothenuseByA(self, a, A):
-        return a / self.sin(A)
+        return a / self.__sin(A)
 
     def rightHypothenuse(self, a):
-        return self.rightHypothenuseByB(a, self.DETAIL_B/2)
+        return self.rightHypothenuseByB(a, self.DETAIL_HB)
 
     def isoscelesBase(self, Or):
-        return Or * 2 * (self.cos((self.HALF_CIRCLE-self.DETAIL_B)/2))
+        return Or * 2 * self.__cos(self.DETAIL_A)
+
+    def __cos(self, c):
+        return math.cos(math.radians(c))
+
+    def __sin(self, c):
+        return math.sin(math.radians(c))
+
+    def __tan(self, c):
+        return math.tan(math.radians(c))
 
     @property
     def base(self):
