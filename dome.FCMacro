@@ -14,13 +14,13 @@
 # Root object params (mm):
 DETAILS  = int(16)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
 OR     = float(3900) # Outscribed R of polygon & carriage on X axis
-H1     = float(2000) # Height of 1st 'floor' & carriage on Z (or 0)
+H1     = float(0) # Height of 1st 'floor' & carriage on Z (or 0)
 LONG   = float(0) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
  CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
  DISC   = bool(False)  # Outer side of thorus. OR = OR*3
 ) # template of SpreadSheet system of object:
-ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis   (max: DETAILS/4)
+ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis (max: DETAILS/4)
 COLS    = int(DETAILS)   # Number of cols revolving around Z axis (max: DETAILS)
 
 # Materials (mm):
@@ -31,7 +31,7 @@ BAR   = tuple((50, 200))  # (Width, Height) of wooden bar/pipe/sheet metl. etc: 
 # BAR    = tuple((50, 200)),  # (Width, Height) of wooden bar, pipe, sheet metl. etc: !! [Width < Height]
 # CONTOUR   = int(50),        # Ventilated contour (just space between layers).
 # COVER     = int(14),        # Ply-wood thickness to cover FRAME.
-# INSULANT = bool(True),      # Insulant. Height is Height of BAR.
+# INSULANT = bool(True),      # Insulant. Thickness is Height of BAR.
 # )
 
 # Compound options:
@@ -57,6 +57,7 @@ MOVE = dict( # Move compounded or extended object
 # Extra options:
 WIREFRAME  = bool(False)      # To reproduce or hide wireframe
 ROOT       = bool(True)       # To show just wireframe if reproduced
+SOLID      = bool(True)      # Experimental attempt to speedup compound presentation in case of [False]
 # PRODUCTION = bool(False)      # Produce Root for production (in case of STL or DXF needs)
 PRINT3D   = tuple((0, 0))     # Scale object to 3D printer bed. if > 0 and COMPOUND: do
 CLEANUP    = bool(True)       # Clean up document before build
@@ -114,7 +115,7 @@ maxrows = int(DETAILS/4)
 ROWS = maxrows if ROWS > maxrows else ROWS
 COLS = DETAILS if COLS > DETAILS else COLS
 
-import _thread
+import time
 import math
 from collections.abc import MutableMapping
 
@@ -429,9 +430,9 @@ class MacroRoot(object):
         self.appDoc.removeObject(obj)
 
     def cleanUp(self):
-        if not len(self.roots) or not self.CLEANUP: return
+        if not len(self.roots) or not self.CLEANUP:
+            return self.recompute()
         [self.remove(obj.Name) for obj in self.roots]
-        # self.recompute()
         return self.cleanUp()
 
     def _setVisibility(self, obj, vis):
@@ -466,7 +467,6 @@ class BaseTools(MacroRoot):
         p = [ self.vector(*ps) for ps in points ]
         w = Draft.makeWire(p,placement=self.pl,closed=False,face=False,**kwargs)
         self.autogroup(w)
-        # self.recompute()
         self._setVisibility(w, vis)
         return w
 
@@ -474,7 +474,6 @@ class BaseTools(MacroRoot):
         self.pl.Base = self.vector(*placement)
         p =  Draft.makePolygon(n,placement=self.pl,inscribed=i,face=f,support=s,**kwargs)
         self.autogroup(p)
-        # self.recompute()
         return self._setVisibility(p, vis)
 
     def Surface(self, edges, vis=False):
@@ -499,7 +498,7 @@ class BaseTools(MacroRoot):
         e.DirMode = d
         e.Dir = self.vector(direction)
         e.LengthFwd = height
-        e.Solid = True
+        e.Solid = self.solid
         e.Symmetric = s
         self._setVisibility(surface, False)
         return self._setVisibility(e, vis)
@@ -508,7 +507,7 @@ class BaseTools(MacroRoot):
         assert len(faces) is 2, "AmountError: number of faces must be 2"
         loft = self.appDoc.addObject('Part::Loft', 'Loft')
         loft.Sections = faces
-        loft.Solid = True
+        loft.Solid = self.solid
         loft.Ruled = ruled
         loft.Closed = closed
         [self._setVisibility(f, False) for f in faces]
@@ -526,6 +525,16 @@ class BaseTools(MacroRoot):
         [self._setVisibility(o, vis) for o in objs]
         return objs
 
+    @property
+    def solid(self):
+        try: return self.__solid
+        except AttributeError: self.solid = False
+        finally: return self.__solid
+
+    @solid.setter
+    def solid(self, solid):
+        self.__solid = solid
+
 class Model(BaseTools):
     def wire(self, points, **kwargs):
         return [self.Wire(points,**kwargs)]
@@ -538,33 +547,32 @@ class Model(BaseTools):
         assert isinstance(tool, list) and len(tool) is 1, "one tool must be in list"
         r = list()
         [ r.extend(self.__cut(base, tool, **kwargs)) for base in bases ]
-        # self.recompute()
+        self.recompute()
         return r
 
     def surface(self, e1, e2, **kwargs):
         assert len(e1) and len(e1) is len(e2), "empty edges list or lists not equal"
         r = list()
         [ r.extend(self.__surface([e1[i],e2[i]],**kwargs)) for i in range(len(e1)) ]
-        # self.recompute()
+        self.recompute()
         return r
 
     def extrude(self, surfaces, *args, **kwargs):
         assert isinstance(surfaces, list) and len(surfaces), "bases must be not empty list"
         r = list()
         [ r.extend(self.__extrude(s, *args, **kwargs)) for s in surfaces ]
-        # self.recompute()
+        self.recompute()
         return r
 
     def loft(self, f1, f2, **kwargs):
         assert len(f1) and len(f1) is len(f2), "empty faces list or lists not equal"
         l = list()
         [ l.extend(self.__loft([f1[i],f2[i]],**kwargs)) for i in range(len(f1)) ]
-        # self.recompute()
+        self.recompute()
         return l
 
     def wiresPoints(self, wires):
         "Returns FreeCAD vectorized list of wire points"
-        # self.recompute()
         points = list()
         obj = self.Object
         [ points.append([obj(w).Start, obj(w).End]) for w in wires ]
@@ -595,7 +603,7 @@ class Movement(Model):
         obj = list()
         for i in range(1, times+1):
             obj.extend(self.Rotate(objs, angle*i, zero, axis, cp=cp, **kwargs))
-        # self.recompute()
+        self.recompute()
         return obj
 
     def move(self, objs, x, y, z, times, vis=True, **kwargs):
@@ -605,7 +613,7 @@ class Movement(Model):
         for i in range(1, times+1):
             xi, yi, zi = x*i, y*i, z*i
             obj.extend(self.Move(objs, xi, yi, zi, **kwargs))
-        # self.recompute()
+        self.recompute()
         return obj
 
 # END: FreeCAD system covers
@@ -758,6 +766,22 @@ class Blocks(MutableMapping, ExtensionPoints):
         self.types[__class__._tps_][tp][name][i].extend(l)
         return self.types[__class__._tps_][tp][name]
 
+    # BEGIN: Expand system operators
+
+    def extendPlg(self, name, l):
+        return self._extendRoot(__class__._plg_, name, l)
+
+    def getPlg(self, name):
+        return self._getRoot(__class__._plg_, name)
+
+    def extendExt(self, name, l):
+        return self._extendRoot(__class__._ext_, name, l)
+
+    def getExt(self, name):
+        return self._getRoot(__class__._ext_, name)
+
+    # END: Expand system operators
+
     # BEGIN: Concrete operators
 
     def appendWfr(self, name, l):
@@ -777,18 +801,6 @@ class Blocks(MutableMapping, ExtensionPoints):
 
     def getRoot(self, name):
         return self._getRoot(__class__._roo_, name)
-
-    def extendPlg(self, name, l):
-        return self._extendRoot(__class__._plg_, name, l)
-
-    def getPlg(self, name):
-        return self._getRoot(__class__._plg_, name)
-
-    def extendExt(self, name, l):
-        return self._extendRoot(__class__._ext_, name, l)
-
-    def getExt(self, name):
-        return self._getRoot(__class__._ext_, name)
 
     # END: Concrete operators
 
@@ -935,8 +947,9 @@ class Root(WireFrame):
         self.__rows = ny   # number rows
         self.__cols = nz   # number cols
 
-    def _build(self):
+    def _build(self, solid=False):
         wfr = self.get(Blocks._wfr_)
+        self.solid = solid
         assert isinstance(wfr, dict) and len(wfr), "call wireFrame before build"
         return wfr
 
@@ -951,12 +964,10 @@ class Root(WireFrame):
     @rows.setter
     def rows(self, number):
         self.__rows = number
-        return self.__rows
 
     @cols.setter
     def cols(self, number):
         self.__cols = number
-        return self.__cols
 
 # END: Object creation system
 
@@ -1015,8 +1026,8 @@ class MonoRoot(MonoWireFrame):
         super().wireFrame(ny, nz)
         self._createMonoWireFrame(ny, self.MTL, **kwargs)
 
-    def _build(self):
-        super()._build()
+    def _build(self, **kwargs):
+        super()._build(**kwargs)
         self.__buildRootFaces()
         self.__buildPolyH1()
         self.__buildExtH1()
@@ -1103,22 +1114,22 @@ class MonoDome(MonoRoot):
     def __init__(self, *args, **kwargs):
         super().__init__(Root._dome_, *args, **kwargs)
 
-    def root(self):
-        self._build()
+    def root(self, **kwargs):
+        self._build(**kwargs)
 
 class MonoCorner(MonoRoot):
     def __init__(self, *args, **kwargs):
         super().__init__(Root._corn_, *args, **kwargs)
 
-    def root(self):
-        return self._build()
+    def root(self, **kwargs):
+        return self._build(**kwargs)
 
 class MonoDisc(MonoRoot):
     def __init__(self, *args, **kwargs):
         super().__init__(Root._disc_, *args, **kwargs)
 
-    def root(self):
-        return self._build()
+    def root(self, **kwargs):
+        return self._build(**kwargs)
 
 class MonoThorus(MonoRoot):
     def __init__(self, *args, **kwargs):
@@ -1130,9 +1141,9 @@ class MonoThorus(MonoRoot):
         self.__thorWireFrame(ny, **kwargs)
         return self.get(Blocks._wfr_)
 
-    def root(self):
-        self.__cornRoot()
-        self.__thorRoot()
+    def root(self, **kwargs):
+        self.__cornRoot(**kwargs)
+        self.__thorRoot(**kwargs)
         return self.get(Blocks._roo_)
 
     def __cornWireFrame(self, ny, **kwargs):
@@ -1146,13 +1157,13 @@ class MonoThorus(MonoRoot):
     def __wireFrame(self, ny, **kwargs):
         return self._createMonoWireFrame(ny, self.MTL, **kwargs)
 
-    def __cornRoot(self):
+    def __cornRoot(self, **kwargs):
         self.pointSystem = Root._corn_
-        return self._build()
+        return self._build(**kwargs)
 
-    def __thorRoot(self):
+    def __thorRoot(self, **kwargs):
         self.pointSystem = Root._thor_
-        return self._build()
+        return self._build(**kwargs)
 
 # END: Mono root creation system
 
@@ -1425,8 +1436,8 @@ class BarRoot(BarModelLayer):
         super().wireFrame(ny, nz)
         return self._createBarWireFrame(ny, self.MTL, **kwargs)
 
-    def _build(self):
-        super()._build()
+    def _build(self, **kwargs):
+        super()._build(**kwargs)
         self.__bottomHorizonBar()
         self.__h1WallBar()
         self.__verticalPolyBar()
@@ -1494,22 +1505,22 @@ class BarDome(BarRoot, ):
     def __init__(self, *args, **kwargs):
         super().__init__(Root._dome_, *args, **kwargs)
 
-    def root(self):
-        self._build()
+    def root(self, **kwargs):
+        self._build(**kwargs)
 
 class BarCorner(BarRoot):
     def __init__(self, *args, **kwargs):
         super().__init__(Root._corn_, *args, **kwargs)
 
-    def root(self):
-        return self._build()
+    def root(self, **kwargs):
+        return self._build(**kwargs)
 
 class BarDisc(BarRoot):
     def __init__(self, *args, **kwargs):
         super().__init__(Root._disc_, *args, **kwargs)
 
-    def root(self):
-        return self._build()
+    def root(self, **kwargs):
+        return self._build(**kwargs)
 
 class BarThorus(BarRoot):
     def __init__(self, *args, **kwargs):
@@ -1521,9 +1532,9 @@ class BarThorus(BarRoot):
         self.__thorWireFrame(ny, **kwargs)
         return self.get(Blocks._wfr_)
 
-    def root(self):
-        self.__cornRoot()
-        self.__thorRoot()
+    def root(self, **kwargs):
+        self.__cornRoot(**kwargs)
+        self.__thorRoot(**kwargs)
         return self.get(Blocks._roo_)
 
     def __wireFrame(self, ny, **kwargs):
@@ -1537,13 +1548,13 @@ class BarThorus(BarRoot):
         self.pointSystem = Root._thor_
         return self.__wireFrame(ny, **kwargs)
 
-    def __cornRoot(self):
+    def __cornRoot(self, **kwargs):
         self.pointSystem = Root._corn_
-        return self._build()
+        return self._build(**kwargs)
 
-    def __thorRoot(self):
+    def __thorRoot(self, **kwargs):
         self.pointSystem = Root._thor_
-        return self._build()
+        return self._build(**kwargs)
 
 # END: Bar root creation system
 
@@ -1805,8 +1816,8 @@ class Compound(Extend):
 # BEGIN: Basic flexible Mono Root extends and compound
 
 class MonoExtend(Compound):
-    def __init__(self, obj):
-        super().__init__(MonoRoot, obj)
+    def __init__(self, obj, **kwargs):
+        super().__init__(MonoRoot, obj, **kwargs)
         if not self.h1 and not self.rows: return
         self.__completePartialPoly(obj)
         self._revPolyZ(obj, self.cols-1)
@@ -1849,8 +1860,8 @@ class MonoExtend(Compound):
         return super()._moveExtVToThor(obj, tomove, y=y)
 
 class MonoCompound(MonoExtend):
-    def __init__(self, *args):
-        super().__init__(*args)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._collectTotal(self.obj)
 
     # def compound(self):
@@ -1867,8 +1878,8 @@ class BarExtend(Compound):
     """
     _roof_ = str('roof')
 
-    def __init__(self, obj):
-        super().__init__(BarRoot, obj)
+    def __init__(self, obj, **kwargs):
+        super().__init__(BarRoot, obj, **kwargs)
         self.__completePartialPoly(obj)
         self._revPolyZ(obj, self.cols-1)
         self.__completeExtension(obj)
@@ -1959,8 +1970,8 @@ class BarExtend(Compound):
     # END: Extension expand system
 
 class BarCompound(BarExtend):
-    def __init__(self, *args):
-        super().__init__(*args)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._collectTotal(self.obj)
 
 # END: Basic flexible Bar Root extends and compound
@@ -2008,7 +2019,6 @@ def buildObject(OBJ, obj, s, root, EXTEND, COMPOUND, ROTATE, MOVE):
         o = root(obj)
     if COMPOUND:
         o.compound()
-        # obj.recompute()
     if ROTATE.get('DO'):                # at first rotate
         angle  = ROTATE.get('ANGLE')
         center = ROTATE.get('CENTER')
@@ -2024,6 +2034,9 @@ def buildObject(OBJ, obj, s, root, EXTEND, COMPOUND, ROTATE, MOVE):
     return o
 
 if __name__ == "__main__" and CONFIG:
+
+    t = time.time()
+
     args = convert(MONO or BAR, LONG, H1, OR, DETAILS, THORUS, COMPOUND, PRINT3D)
 
     if       THORUS.get('CORNER') and not THORUS.get('DISC'):
@@ -2051,11 +2064,15 @@ if __name__ == "__main__" and CONFIG:
     obj.wireFrame(ROWS, COLS, vis=WIREFRAME)
     if not ROOT: exit(0)
 
-    obj.root()
-    # obj.recompute()
+    obj.root(solid=SOLID)
 
     for o in ['DOME', 'CORNER', 'DISC', 'THORUS']:
         buildObject( OBJ, obj, o, COMP, EXTEND, COMPOUND, ROTATE, MOVE )
+
+    t = time.time() - t
+    m = int(t/60)
+    s = t - m*60
+    obj.cprint('Built in: {0} minutes, {1:.1f} seconds'.format(m, s))
 
 elif __name__ == "__main__" and not CONFIG:
     "Start coding here if not CONFIG"
