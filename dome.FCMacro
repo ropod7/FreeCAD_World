@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # Macros source: https://github.com/ropod7/FreeCAD_World
@@ -12,27 +12,29 @@
 ###############################################################################
 
 # Root object params (mm):
-DETAILS  = int(16)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
-OR     = float(3900) # Outscribed R of polygon & carriage on X axis
-H1     = float(0) # Height of 1st 'floor' & carriage on Z (or 0)
-LONG   = float(0) # Extension & carriage on Y axis (or 0)
+DETAILS  = int(12)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
+OR     = float(3000) # Outscribed R of polygon & carriage on X axis
+H1     = float(2000) # Height of 1st 'floor' & carriage on Z (or 0)
+LONG   = float(20000) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
- CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
- DISC   = bool(False)  # Outer side of thorus. OR = OR*3
+    CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
+    DISC   = bool(False)  # Outer side of thorus. OR = OR*3
 ) # template of SpreadSheet system of object:
-ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis (max: DETAILS/4)
-COLS    = int(DETAILS)   # Number of cols revolving around Z axis (max: DETAILS)
+ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis (min: 0; max: DETAILS/4)
+COLS    = int(DETAILS/2)   # Number of cols revolving around Z axis (min: 0; max: DETAILS)
 
 # Materials (mm):
 # NB: [!!!] more DETAILS and higher OR returns more complexity in case of MONO thickness. [!!!]
-MONO   = float(300)       # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not BAR
-BAR   = tuple((50, 200))  # (Width, Height) of wooden bar/pipe/sheet metl. etc: == [Width < Height]
-# FRAME = dict( # BAR Root build as class FRAME with additional options (if MONO > 0: not FRAME):
-# BAR    = tuple((50, 200)),  # (Width, Height) of wooden bar, pipe, sheet metl. etc: !! [Width < Height]
-# CONTOUR   = int(50),        # Ventilated contour (just space between layers).
-# COVER     = int(14),        # Ply-wood thickness to cover FRAME.
-# INSULANT = bool(True),      # Insulant. Thickness is Height of BAR.
-# )
+MONO   = float(0)        # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not COVER and not FRAME
+COVER  = float(0)        # Ply-wood thickness to cover FRAME (OR becomes IR). if not MONO and COVER > 0: not FRAME
+FRAME = tuple((50, 200)) # (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
+
+# Constructions:
+HOUSE = dict( # if BUILD == True: Receives COVER and FRAME from Materials.
+    BUILD     = bool(False), # Build Frame House or not.
+    CONTOUR    = int(50),   # Ventilated contour (just space between layers of FRAME and COVER or 0).
+    INSULANT = float(FRAME[1]), # Insulant thickness or 0.
+)
 
 # Compound options:
 EXTEND   = bool(True)   # Root as open contour system (fill up long, cols etc.)
@@ -40,28 +42,29 @@ COMPOUND = bool(True)   # Simple compounded object (if LONG: COLS <= DETAILS/2)
 
 # Movement (mm):
 ROTATE = dict( # Rotate compounded or extended object
- DO       = bool(False),     # Do rotate or not
- ANGLE  =  float(360/DETAILS),     # Angle to rotate object
- CENTER = tuple((OR*4, OR*4, 0)), # Center of axis to rotate object (x, y, z)
- AXIS   = tuple((0, 0, 1)),  # Rotation axis (around x, around y, around z)
- COPY     = bool(True),     # Copy object to rotate
- TIMES     = int(DETAILS)          # How many pcs to COPY. eg. if COPY: polar array.
+    DO       = bool(True),     # Do rotate or not
+    ANGLE  =  float(45),     # Angle to rotate object
+    CENTER = tuple((0, 0, 0)), # Center of axis to rotate object (x, y, z)
+    AXIS   = tuple((0, 0, 1)),  # Rotation axis (around x, around y, around z)
+    COPY     = bool(False),     # Copy object to rotate
+    TIMES     = int(1)          # How many pcs to COPY. eg. if COPY: polar array.
 )
 MOVE = dict( # Move compounded or extended object
- DO       = bool(False),    # Do move or not
- VECTOR = tuple((0, 0, 5400)), # Vector to move object (x, y, z)
- COPY     = bool(False),     # Copy object to move
- TIMES     = int(1)          # How many pcs to COPY. eg. if COPY: ortho array.
+    DO       = bool(True),    # Do move or not
+    VECTOR = tuple((0, 25, 0)), # Vector to move object (x, y, z)
+    COPY     = bool(False),     # Copy object to move
+    TIMES     = int(1)          # How many pcs to COPY. eg. if COPY: ortho array.
 )
 
 # Extra options:
-WIREFRAME  = bool(False)      # To reproduce or hide wireframe
-ROOT       = bool(True)       # To show just wireframe if reproduced
-SOLID      = bool(True)      # Experimental attempt to speedup compound presentation in case of [False]
-# PRODUCTION = bool(False)      # Produce Root for production (in case of STL or DXF needs)
-PRINT3D   = tuple((0, 0))     # Scale object to 3D printer bed. if > 0 and COMPOUND: do
-CLEANUP    = bool(True)       # Clean up document before build
-CONFIG     = bool(True)       # Switch off CONFIG to extend macros by python3 code
+WIREFRAME  = bool(False)   # To reproduce or hide wireframe
+ROOT       = bool(True)    # To show just wireframe if reproduced
+SOLID      = bool(True)    # Experimental attempt to speedup compound presentation in case of [False]
+# PRODUCTION = bool(False) # Produce Root for production (in case of STL or DXF needs)
+PRINT3D   = tuple((0, 0))  # Scale object to 3D printer bed. if > 0 and COMPOUND: do
+CLEANUP    = bool(True)    # Clean up document before build
+CONFIG     = bool(True)    # Switch off CONFIG to extend macros by python3 code
+# TEST       = bool(True)  # Run material tests in new doc, based on Root object params
 
 """
 
@@ -104,12 +107,12 @@ CONFIG     = bool(True)       # Switch off CONFIG to extend macros by python3 co
 #
 ###################################################################################
 
-assert OR,                          "Empty Radius definition"
-assert BAR[0] and BAR[1] or MONO,   "Empty cell[/s] in BAR or MONO definition"
-assert BAR[0] < BAR[1],             "BAR width must be lower than BAR height"
+assert OR,                            "Empty Radius definition"
+assert FRAME[0] and FRAME[1] or MONO, "Empty cell[/s] in FRAME or MONO definition"
+assert FRAME[0] < FRAME[1],           "FRAME width must be lower than FRAME height"
 DETAILS = 4 if DETAILS < 4 else DETAILS
-h = BAR[1] + BAR[0]/2 if not MONO else MONO
-MONO = OR-10 if MONO >= OR else MONO
+h = FRAME[1] + FRAME[0]/2 if not MONO else MONO
+MONO = OR if MONO > OR else MONO
 H1 = h if H1 < h and H1 else H1
 maxrows = int(DETAILS/4)
 ROWS = maxrows if ROWS > maxrows else ROWS
@@ -125,17 +128,8 @@ class Trigon(object):
     def __init__(self, r, d):
         "Receives OR and DETAILS definitions"
         assert isinstance(r, float), "TypeError: r (OR) must be float"
-        self.OR = r
-        self.CIRCLE = 360
-        self.HALF_CIRCLE = self.CIRCLE / 2.0
-        self.DETAILS = d
-        self.DETAIL_B = self.CIRCLE / d
-        self.DETAIL_HB = self.DETAIL_B/2
-        self.POLY_QUARTER = int(d / 4)
-        self.DETAIL_A = (self.HALF_CIRCLE-self.DETAIL_B) / 2.0
-        self.__base_ = self.isoscelesBase(r)
-        even =  int(d/4)*self.DETAIL_B
-        self.DETAIL_BO = self.HALF_CIRCLE/2 - even
+        self.__OR = r
+        self.__DETAILS = d
 
     # Semantics of Trigonometry from: https://tinyurl.com/yyrxfd84
 
@@ -178,8 +172,55 @@ class Trigon(object):
         return math.tan(math.radians(c))
 
     @property
+    def CIRCLE(self):
+        return 360
+
+    @property
+    def HALF_CIRCLE(self):
+        return self.CIRCLE / 2
+
+    @property
+    def OR(self):
+        return self.__OR
+
+    @property
+    def DETAILS(self):
+        return self.__DETAILS
+
+    @property
+    def DETAIL_B(self):
+        return self.CIRCLE / self.DETAILS
+
+    @property
+    def DETAIL_HB(self):
+        return self.DETAIL_B / 2
+
+    @property
+    def DETAIL_BO(self):
+        "non quatro odd angle of quarter of polygon"
+        try: return self.__BO
+        except AttributeError:
+            even = self.POLY_QUARTER * self.DETAIL_B
+            self.__BO = self.HALF_CIRCLE / 2 - even
+        return self.DETAIL_BO
+
+    @property
+    def POLY_QUARTER(self):
+        return int(self.DETAILS / 4)
+
+    @property
+    def DETAIL_A(self):
+        try: return self.__A
+        except AttributeError:
+            self.__A = (self.HALF_CIRCLE - self.DETAIL_B) / 2
+        return self.DETAIL_A
+
+    @property
     def base(self):
-        return self.__base_
+        try: return self.__base_
+        except AttributeError:
+            self.__base_ = self.isoscelesBase(self.OR)
+        return self.base
 
     @property
     def quatro(self):
@@ -363,7 +404,7 @@ class ExtensionPoints(ThorusPoints):
         return self.insLongL, self.insLongN
 
     def __insertionUnits(self, size, MTT):
-        "Retruns dimension and amount of internal orthogonal objects"
+        "Returns dimension and amount of internal orthogonal objects"
         if not size: return 0, 0
         reduc = self.OR/10
         MTT = reduc if MTT > reduc else MTT
@@ -394,106 +435,179 @@ class ExtensionPoints(ThorusPoints):
     def insH1N(self):
         return self.__insH1N_
 
+class RightPoints(ExtensionPoints):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def rightSidePoint(self, x):
+        """
+         Receives X as cathetus length of right triangle
+        and returns Y as length of side of right triangle.
+        Points Y till -Y gives base of isosceles triangle,
+              which rotated on Z axis by -(B/2).
+        """
+        return self.rightSideB_ByAA(x, self.DETAIL_A)
+
+    def polySidePoints(self, x):
+        """
+              Receives X as cathetus length of right triangle
+          and returns X1,Y as points of angle A of right triangle.
+        Proportional elongation of X1,Y around point of right angle
+         of right triangle, which provides X, gives points of base
+                         of isosceles triangle
+        """
+        pass
+
 # END: Trigonometrical Common Geometry
 
 # BEGIN: FreeCAD system covers
 
 import FreeCAD, FreeCADGui
-import Draft
+from FreeCAD import Base
+import Draft, Part
 
 class MacroRoot(object):
-    def __init__(self, cup=False):
-        "Receives CLEANUP definition"
-        self.CLEANUP = cup
-        self.cleanUp()
+    def __init__(self):
         self.pl = FreeCAD.Placement()
+
+    def newDoc(self, name):
+        name = self.__convertDocName(name)
+        App.newDocument(name)
+        self.getDoc(name, conv=False)
+
+    def setDoc(self, name, conv=True):
+        name = self.__convertDocName(name) if conv else name
+        App.setActiveDocument(name)
+        for doc in [self.appDoc, self.guiDoc, self.fcDoc]:
+            doc = doc.getDocument(name)
 
     def vector(self, *v):
         return FreeCAD.Vector(*v)
-
-    def Object(self, obj):
-        return self._getGuiObject(obj).Object
+        # return Base.Vector(*v)
 
     def recompute(self):
         self.appDoc.recompute()
 
-    def cprint(self, *args):
-        l = len([*args])
-        s = "%s; " * l + "\n" if l > 1 else "%s\n"
-        args = tuple([str(a) for a in [*args]])
-        App.Console.PrintMessage(s % args)
-
     def autogroup(self, obj):
         return Draft.autogroup(obj)
 
-    def remove(self, obj):
-        self.appDoc.removeObject(obj)
+    def cprint(self, *args):
+        l = len([*args])
+        s = "%s; " * l + "\n" if l > 1 else "%s\n"
+        args = tuple([ str(a) for a in [*args] ])
+        App.Console.PrintMessage(s % args)
 
-    def cleanUp(self):
-        if not len(self.roots) or not self.CLEANUP:
-            return self.recompute()
-        [self.remove(obj.Name) for obj in self.roots]
-        return self.cleanUp()
+    def __convertDocName(self, name):
+        assert isinstance(name, str), "TypeError: doc name must be str"
+        ords = self.__ords()
+        for o in ords: name = name.replace(chr(o), '_')
+        return name
 
-    def _setVisibility(self, obj, vis):
-        self._getGuiObject(obj).Visibility = vis
-        return obj
-
-    def _getGuiObject(self, obj):
-        return self.guiDoc.getObject(obj.Name)
-
-    def _getFcObject(self, obj):
-        return self.fcDoc.getObject(obj.Name)
+    def __ords(self):
+        "Returns sequence of 'not letter' symbol indexes in ascii table"
+        ords = list()
+        seqs = [ (32,48), (58,65), (91,97), (123,127) ]
+        [ ords.extend(list(range(*r))) for r in seqs ]
+        return ords
 
     @property
     def fcDoc(self):
         return FreeCAD.ActiveDocument
 
+    @fcDoc.setter
+    def fcDoc(self, doc):
+        FreeCAD.ActiveDocument = doc
+
     @property
     def appDoc(self):
         return App.ActiveDocument
+
+    @appDoc.setter
+    def appDoc(self, doc):
+        App.ActiveDocument = doc
 
     @property
     def guiDoc(self):
         return FreeCADGui.ActiveDocument
 
+    @guiDoc.setter
+    def guiDoc(self, doc):
+        FreeCADGui.ActiveDocument = doc
+
     @property
     def roots(self):
         return self.fcDoc.RootObjects
 
-class BaseTools(MacroRoot):
+class FreeCADObject(MacroRoot):
+    def __init__(self, cleanup=False):
+        "Receives CLEANUP definition"
+        super().__init__()
+        self.cleanUp(cleanup=cleanup)
+
+    def AddObject(self, feature, name):
+        return self.fcDoc.addObject(feature, name)
+
+    def Object(self, obj):
+        return self.GuiObject(obj).Object
+
+    def remove(self, obj):
+        self.appDoc.removeObject(obj)
+
+    def cleanUp(self, cleanup=False):
+        lr = len(self.roots)
+        if not lr or not cleanup: return self.recompute()
+        [ self.remove(obj.Name) for obj in self.roots ]
+        return self.cleanUp()
+
+    def GuiObject(self, obj):
+        return self.guiDoc.getObject(obj.Name)
+
+    def FCObject(self, obj):
+        return self.fcDoc.getObject(obj.Name)
+
+    def _setVisibility(self, obj, vis):
+        self.GuiObject(obj).Visibility = vis
+        return obj
+
+    @property
+    def ActiveObject(self):
+        return self.fcDoc.ActiveObject
+
+class BaseTools(FreeCADObject):
     def Wire(self, points, vis=False, **kwargs):
-        assert isinstance(points, list) and len(points), "TypeError: objs must be list"
+        self.__typeLenCheck(points, list)
         p = [ self.vector(*ps) for ps in points ]
         w = Draft.makeWire(p,placement=self.pl,closed=False,face=False,**kwargs)
         self.autogroup(w)
         self._setVisibility(w, vis)
         return w
 
-    def Polygon(self, n, placement, f=True, s=None, i=True, vis=False, **kwargs):
-        self.pl.Base = self.vector(*placement)
-        p =  Draft.makePolygon(n,placement=self.pl,inscribed=i,face=f,support=s,**kwargs)
-        self.autogroup(p)
-        return self._setVisibility(p, vis)
+    def Polygon(self, n, p, f=True, s=None, i=True, vis=False, **kwargs):
+        sides = n
+        self.pl.Base = self.vector(*p)
+        kw = dict(placement=self.pl, inscribed=i, face=f, support=s, **kwargs)
+        polygon = Draft.makePolygon(sides, **kw)
+        self.autogroup(polygon)
+        return self._setVisibility(polygon, vis)
 
     def Surface(self, edges, vis=False):
-        assert len(edges) is 2, "AmountError: number of edges must be 2"
+        assert len(edges) is 2, "LengthError: number of edges must be 2"
         edge1, edge2 = edges
-        s = self.fcDoc.addObject('Part::RuledSurface', 'Surface')
-        self.fcDoc.ActiveObject.Curve1=(edge1,['Edge1'])
-        self.fcDoc.ActiveObject.Curve2=(edge2,['Edge1'])
+        s = self.AddObject('Part::RuledSurface', 'Surface')
+        self.ActiveObject.Curve1 = ( edge1, ['Edge1'] )
+        self.ActiveObject.Curve2 = ( edge2, ['Edge1'] )
         return self._setVisibility(s, vis)
 
     def Cut(self, base, tool, bvis=False):
-        c = self.fcDoc.addObject('Part::Cut', 'Cut')
-        c.Base = self._getFcObject(base)
-        c.Tool = self._getFcObject(tool)
+        c = self.AddObject('Part::Cut', 'Cut')
+        c.Base = self.FCObject(base)
+        c.Tool = self.FCObject(tool)
         self._setVisibility(base, bvis)
         self._setVisibility(tool, False)
         return c
 
     def Extrude(self, surface, direction, height, s=True, vis=True, d="Custom"):
-        e = self.fcDoc.addObject('Part::Extrusion', 'Extrude')
+        e = self.AddObject('Part::Extrusion', 'Extrude')
         e.Base = surface
         e.DirMode = d
         e.Dir = self.vector(direction)
@@ -504,26 +618,51 @@ class BaseTools(MacroRoot):
         return self._setVisibility(e, vis)
 
     def Loft(self, faces, ruled=False, closed=False):
-        assert len(faces) is 2, "AmountError: number of faces must be 2"
-        loft = self.appDoc.addObject('Part::Loft', 'Loft')
+        assert len(faces) is 2, "LengthError: number of faces must be 2"
+        loft = self.AddObject('Part::Loft', 'Loft')
         loft.Sections = faces
         loft.Solid = self.solid
         loft.Ruled = ruled
         loft.Closed = closed
-        [self._setVisibility(f, False) for f in faces]
+        [ self._setVisibility(f, False) for f in faces ]
         return loft
+
+    def Slice(self, obj, vector=(0,1,0), move=0, hideobj=True):
+        wires = list()
+        shape = obj.Shape
+        # shape=FreeCAD.getDocument("Unnamed").Loft002.Shape
+        # bv = Base.Vector(*vector)
+        bv = self.vector(*vector)
+        [ wires.append(i) for i in shape.slice(bv, move) ]
+        feature = self.__Feature()
+        feature.Shape = self.__Compound(wires)
+        feature.purgeTouched()
+        # del s, comp, wires, shape
+        return self._setVisibility(obj, hideobj) if hideobj else obj
 
     def Rotate(self, objs, A, z, a, cp=True, vis=True):
         Draft.rotate(objs,A,self.vector(*z),axis=self.vector(*a),copy=cp)
         objs = self.roots[-len(objs):] if cp else objs
-        [self._setVisibility(o, vis) for o in objs]
+        [ self._setVisibility(o, vis) for o in objs ]
         return objs
 
     def Move(self, objs, x, y, z, cp=True, vis=True):
         Draft.move(objs, self.vector(x, y, z), copy=cp)
         objs = self.roots[-len(objs):] if cp else objs
-        [self._setVisibility(o, vis) for o in objs]
+        [ self._setVisibility(o, vis) for o in objs ]
         return objs
+
+    def __Feature(self, name):
+        self.__typeLenCheck(name, str)
+        return self.AddObject('Part::Feature', name)
+
+    def __Compound(self, objs):
+        self.__typeLenCheck(objs, list)
+        return Part.Compound(objs)
+
+    def __typeLenCheck(self, obj, tp):
+        assert isinstance(obj, tp), "TypeError: given obj must be iterable"
+        assert len(obj),            "LengthError: zero length of obj"
 
     @property
     def solid(self):
@@ -537,10 +676,11 @@ class BaseTools(MacroRoot):
 
 class Model(BaseTools):
     def wire(self, points, **kwargs):
-        return [self.Wire(points,**kwargs)]
+        self.recompute()
+        return [ self.Wire(points,**kwargs) ]
 
     def polygon(self, sides, radius, placement, **kwargs):
-        return [self.Polygon(sides, placement, radius=radius, **kwargs)]
+        return [ self.Polygon(sides, placement, radius=radius, **kwargs) ]
 
     def cut(self, bases, tool, **kwargs):
         assert isinstance(bases, list) and len(bases), "bases must be not empty list"
@@ -579,18 +719,18 @@ class Model(BaseTools):
         return points
 
     def __cut(self, base, tool, **kwargs):
-        return [self.Cut(base, tool[0], **kwargs)]
+        return [ self.Cut(base, tool[0], **kwargs) ]
 
     def __surface(self, edges, **kwargs):
-        return [self.Surface(edges, **kwargs)]
+        return [ self.Surface(edges, **kwargs) ]
 
     def __loft(self, faces, **kwargs):
         assert isinstance(faces, list) and len(faces) is 2, \
             "TypeError: faces must be list with length 2"
-        return [self.Loft(faces, **kwargs)]
+        return [ self.Loft(faces, **kwargs) ]
 
     def __extrude(self, surface, direction, height, **kwargs):
-        return [self.Extrude(surface, direction, height, **kwargs)]
+        return [ self.Extrude(surface, direction, height, **kwargs) ]
 
 class Movement(Model):
     def rotate(self, objs, angle, zero, axis, times, cp=True, **kwargs):
@@ -599,7 +739,8 @@ class Movement(Model):
         if times < 0:   # rotate backward feature
             times *= -1
             angle = -angle
-        if not cp: return self.Rotate(objs, angle*times, zero, axis, cp=cp, **kwargs)
+        if not cp:
+            return self.Rotate(objs, angle*times, zero, axis, cp=cp, **kwargs)
         obj = list()
         for i in range(1, times+1):
             obj.extend(self.Rotate(objs, angle*i, zero, axis, cp=cp, **kwargs))
@@ -622,10 +763,9 @@ class Movement(Model):
 
 class ObjectMovement(Movement):
     """Base movement mechanism of machine tool"""
-    def __init__(self, *args, cup=False, **kwargs):
+    def __init__(self, *args, cleanup=False, **kwargs):
         Blocks.__init__(self, *args, **kwargs)
-        MacroRoot.__init__(self, cup=cup)
-        self.__dirY = 1 if self.elongated else -1
+        FreeCADObject.__init__(self, cleanup=cleanup)
 
     def xMirror(self, objs, y=0, **kwargs):
         angle = 180
@@ -688,9 +828,9 @@ class ObjectMovement(Movement):
 
     @property
     def dirY(self):
-        return self.__dirY
+        return 1 if self.elongated else -1
 
-class Blocks(MutableMapping, ExtensionPoints):
+class Blocks(MutableMapping, RightPoints):
     """
 
     Contains grouped dict of object roots. Created to make parametric
@@ -707,7 +847,7 @@ class Blocks(MutableMapping, ExtensionPoints):
     _plg_ = str('polygonal')
 
     def __init__(self, *args, **kwargs):
-        ExtensionPoints.__init__(self, *args, **kwargs)
+        RightPoints.__init__(self, *args, **kwargs)
         self.types = { __class__._tps_: { } }
 
     def __getitem__(self, key):
@@ -941,11 +1081,12 @@ class Root(WireFrame):
     _disc_ = ThorusPoints._roots_[2]
     _thor_ = ThorusPoints._roots_[3]
 
-    def wireFrame(self, ny, nz, **kwargs):
-        assert ny <= self.DETAILS/4, "AmountError: ny (ROWS) not in range"
-        assert nz <= self.DETAILS,   "AmountError: nz (COLS) not in range"
+    def wireFrame(self, ny, nz, vis=False):
+        assert ny <= self.DETAILS/4, "NumberError: ny (ROWS) not in range"
+        assert nz <= self.DETAILS,   "NumberError: nz (COLS) not in range"
         self.__rows = ny   # number rows
         self.__cols = nz   # number cols
+        self.wfVisibility = vis
 
     def _build(self, solid=False):
         wfr = self.get(Blocks._wfr_)
@@ -993,8 +1134,7 @@ class MonoWireFrame(MonoBlocks):
     _mtl_ = str('mono')
     _vmp_ = str('vMonoPoly') + _mtl_
 
-    def _createMonoWireFrame(self, ny, MTL, vis=False, **kwargs):
-        self.wfVisibility = vis
+    def _createMonoWireFrame(self, ny, MTL, **kwargs):
         mtl = __class__._mtl_
         c1, c2 = 0, self.rightHypothenuse(MTL.T)
         c3 = self.rightHypothenuse(c2)
@@ -1023,7 +1163,7 @@ class MonoRoot(MonoWireFrame):
         super().__init__(tp, *args, **kwargs)
 
     def wireFrame(self, ny, nz, **kwargs):
-        super().wireFrame(ny, nz)
+        super().wireFrame(ny, nz, **kwargs)
         self._createMonoWireFrame(ny, self.MTL, **kwargs)
 
     def _build(self, **kwargs):
@@ -1167,9 +1307,90 @@ class MonoThorus(MonoRoot):
 
 # END: Mono root creation system
 
-# BEGIN: Bar root creation system
+# BEGIN: Cover root creation system
 
-class BarMovement(Root):
+class CoverBlocks(Root): pass
+
+class CoverWireFrame(CoverBlocks):
+    _mtl_ = str('cover')
+    _vcp_ = str('vCoverPoly') + _mtl_
+
+    def _createCoverWireFrame(self, ny, MTL, **kwargs):
+        mtl = __class__._mtl_
+
+
+class CoverRoot(CoverWireFrame):
+    def __init__(self, tp, thickn, *args, **kwargs):
+        assert thickn, "No Cover thickness defined"
+        self.MTL = Materials(thickn=thickn, **kwargs)
+        super().__init__(tp, *args, **kwargs)
+
+    def wireFrame(self, ny, nz, **kwargs):
+        super().wireFrame(ny, nz, **kwargs)
+        self._createCoverWireFrame(ny, self.MTL, **kwargs)
+
+    def _build(self, **kwargs): pass
+
+class CoverDome(CoverRoot):
+    def __init__(self, *args, **kwargs):
+        super().__init__(Root._dome_, *args, **kwargs)
+
+    def root(self, **kwargs):
+        self._build(**kwargs)
+
+class CoverCorner(CoverRoot):
+    def __init__(self, *args, **kwargs):
+        super().__init__(Root._corn_, *args, **kwargs)
+
+    def root(self, **kwargs):
+        return self._build(**kwargs)
+
+class CoverDisc(CoverRoot):
+    def __init__(self, *args, **kwargs):
+        super().__init__(Root._disc_, *args, **kwargs)
+
+    def root(self, **kwargs):
+        return self._build(**kwargs)
+
+class CoverThorus(CoverRoot):
+    def __init__(self, *args, **kwargs):
+        super().__init__(Root._corn_, *args, **kwargs)
+
+    def wireFrame(self, ny, nz, **kwargs):
+        Root.wireFrame(self, ny, nz)
+        self.__cornWireFrame(ny, **kwargs)
+        self.__thorWireFrame(ny, **kwargs)
+        return self.get(Blocks._wfr_)
+
+    def root(self, **kwargs):
+        self.__cornRoot(**kwargs)
+        self.__thorRoot(**kwargs)
+        return self.get(Blocks._roo_)
+
+    def __wireFrame(self, ny, **kwargs):
+        return self._createCoverWireFrame(ny, self.MTL, **kwargs)
+
+    def __cornWireFrame(self, ny, **kwargs):
+        self.pointSystem = Root._corn_
+        return self.__wireFrame(ny, **kwargs)
+
+    def __thorWireFrame(self, ny, **kwargs):
+        self.pointSystem = Root._thor_
+        return self.__wireFrame(ny, **kwargs)
+
+    def __cornRoot(self, **kwargs):
+        self.pointSystem = Root._corn_
+        return self._build(**kwargs)
+
+    def __thorRoot(self, **kwargs):
+        self.pointSystem = Root._thor_
+        return self._build(**kwargs)
+
+# END: Cover root creation system
+
+# BEGIN: Frame root creation system
+
+class FrameMovement(Root):
     def rotateAndDrop(self, obj, MTL, **kwargs):
         "Bottom extension bar creation in case of H1 > 0"
         if not len(obj): return list()
@@ -1226,8 +1447,7 @@ class BarMovement(Root):
         odd = odd if not self.disc else -odd
         lng = self.pArrayYB( bar, -odd, cp=False)
         t = -1 if not self.disc else 1
-        lng = self.pArrayYBO(bar, t, cp=False)
-        return lng
+        return self.pArrayYBO(bar, t, cp=False)
 
     # BEGIN: Horison poly torsion to extrude mechanism
 
@@ -1245,9 +1465,9 @@ class BarMovement(Root):
 
     def __turn(self, obj, i, backw=False):
         """
-        Torsion mechanism to give thickness of horison surfaces of Bar
-         Root poly. Revolves around Z axis by angle B/2 and Y axis by
-                  angle B*position in horisons sequence.
+        Torsion mechanism to give thickness of horison surfaces of Frame
+          Root poly. Revolves around Z axis by angle B/2 and Y axis by
+                   angle B*position in horisons sequence.
         """
         return self.__after(obj, i) if backw else self.__to(obj, i)
 
@@ -1287,8 +1507,8 @@ class BarMovement(Root):
 
     # END: Horison poly torsion to extrude mechanism
 
-class BarBlocks(BarMovement):
-    """Root blocks management system"""
+class FrameBlocks(FrameMovement):
+    """Frame Root blocks management system"""
     _drf_ = str('roof')
 
     def extendDrf(self, name, l):
@@ -1297,15 +1517,14 @@ class BarBlocks(BarMovement):
     def getDrf(self, name):
         return self._getRoot(__class__._drf_, name)
 
-class BarWireFrame(BarBlocks):
+class FrameWireFrame(FrameBlocks):
     _mtl_ = str('bar')
     _btm_ = str('bottom') + _mtl_
     _hpl_ = str('hPoly')  + _mtl_
     _sht_ = str('short')  + _mtl_
     _rof_ = str('long')   + _mtl_
 
-    def _createBarWireFrame(self, ny, MTL, vis=False):
-        self.wfVisibility = vis
+    def _createFrameWireFrame(self, ny, MTL, **kwargs):
         self.insertionH1Units(self.h1, MTL.H)
         self.insertionLongUnits(self.long, MTL.H)
         ws = self.rightHypothenuse(MTL.H)
@@ -1376,10 +1595,10 @@ class BarWireFrame(BarBlocks):
         expr1 = self.thor and expr
         return ny-1 if expr0 or expr1 else ny
 
-class BarModelLayer(BarWireFrame):
+class FrameModelLayer(FrameWireFrame):
     def __polygonCutTool(self, height):
         placement = (self.ZERO_X, 0, self.ZERO_Z)
-        p = self.polygon(DETAILS, self.OR+100, placement)
+        p = self.polygon(self.DETAILS, self.OR+100, placement)
         p = self._rotatePolygonToCut(p, placement)
         return self.extrude(p, (0,1,0), height, vis=False)
 
@@ -1417,15 +1636,15 @@ class BarModelLayer(BarWireFrame):
         s = self.cut(s1, tool)
         return self.pArrayZB(s, 1, cp=False)
 
-class BarRoot(BarModelLayer):
+class FrameRoot(FrameModelLayer):
     """Creator of bar root objects"""
-    _mtrl_ = BarWireFrame._mtl_
+    _mtrl_ = FrameWireFrame._mtl_
     _h1ba_ = WireFrame._h1_  + _mtrl_
     _vplb_ = WireFrame._vpl_ + _mtrl_
-    _botm_ = BarWireFrame._btm_
-    _hplb_ = BarWireFrame._hpl_
-    _lnge_ = BarWireFrame._rof_
-    _shte_ = BarWireFrame._sht_
+    _botm_ = FrameWireFrame._btm_
+    _hplb_ = FrameWireFrame._hpl_
+    _lnge_ = FrameWireFrame._rof_
+    _shte_ = FrameWireFrame._sht_
     _hdrp_ = str('h1drops')
 
     def __init__(self, tp, matW, matH, *args, **kwargs):
@@ -1433,8 +1652,8 @@ class BarRoot(BarModelLayer):
         super().__init__(tp, *args, **kwargs)
 
     def wireFrame(self, ny, nz, **kwargs):
-        super().wireFrame(ny, nz)
-        return self._createBarWireFrame(ny, self.MTL, **kwargs)
+        super().wireFrame(ny, nz, **kwargs)
+        return self._createFrameWireFrame(ny, self.MTL, **kwargs)
 
     def _build(self, **kwargs):
         super()._build(**kwargs)
@@ -1501,28 +1720,28 @@ class BarRoot(BarModelLayer):
         b = self._alignHorisonShortBar(b, self.MTL.W)
         self.extendRoot(tp, b)
 
-class BarDome(BarRoot, ):
+class FrameDome(FrameRoot):
     def __init__(self, *args, **kwargs):
         super().__init__(Root._dome_, *args, **kwargs)
 
     def root(self, **kwargs):
         self._build(**kwargs)
 
-class BarCorner(BarRoot):
+class FrameCorner(FrameRoot):
     def __init__(self, *args, **kwargs):
         super().__init__(Root._corn_, *args, **kwargs)
 
     def root(self, **kwargs):
         return self._build(**kwargs)
 
-class BarDisc(BarRoot):
+class FrameDisc(FrameRoot):
     def __init__(self, *args, **kwargs):
         super().__init__(Root._disc_, *args, **kwargs)
 
     def root(self, **kwargs):
         return self._build(**kwargs)
 
-class BarThorus(BarRoot):
+class FrameThorus(FrameRoot):
     def __init__(self, *args, **kwargs):
         super().__init__(Root._corn_, *args, **kwargs)
 
@@ -1538,7 +1757,7 @@ class BarThorus(BarRoot):
         return self.get(Blocks._roo_)
 
     def __wireFrame(self, ny, **kwargs):
-        return self._createBarWireFrame(ny, self.MTL, **kwargs)
+        return self._createFrameWireFrame(ny, self.MTL, **kwargs)
 
     def __cornWireFrame(self, ny, **kwargs):
         self.pointSystem = Root._corn_
@@ -1556,7 +1775,7 @@ class BarThorus(BarRoot):
         self.pointSystem = Root._thor_
         return self._build(**kwargs)
 
-# END: Bar root creation system
+# END: Frame root creation system
 
 # BEGIN: Extend and compound super system
 
@@ -1767,7 +1986,7 @@ class Extend(object):
         return self.__obj.h1
 
 class Compound(Extend):
-    """Extended array, mirroring and movement system"""
+    """Extended array system"""
     _totl_ = str('total')
 
     def __init__(self, cls, obj, *args, **kwargs):
@@ -1777,8 +1996,8 @@ class Compound(Extend):
 
     def compound(self):
         """
-        Trigonometry based compound object:
-        moved by: -X carriage on Y: LONG/2
+        Trigonometry based compound extended object:
+            moved by: -X carriage on Y: LONG/2
         """
         obj  = self.obj
         expr = not obj.long and obj.cols<obj.DETAILS-1
@@ -1864,22 +2083,19 @@ class MonoCompound(MonoExtend):
         super().__init__(*args, **kwargs)
         self._collectTotal(self.obj)
 
-    # def compound(self):
-        # self.obj.thread( super().compound )
-
 # END: Basic flexible Mono Root extends and compound
 
-# BEGIN: Basic flexible Bar Root extends and compound
+# BEGIN: Basic flexible Frame Root extends and compound
 
-class BarExtend(Compound):
+class FrameExtend(Compound):
     """
-    Bar Root objects extend tool and over layer of movement
-          system, which works just with given objects
+    Frame Root objects extend tool and over layer of movement
+           system, which works just with given objects
     """
     _roof_ = str('roof')
 
     def __init__(self, obj, **kwargs):
-        super().__init__(BarRoot, obj, **kwargs)
+        super().__init__(FrameRoot, obj, **kwargs)
         self.__completePartialPoly(obj)
         self._revPolyZ(obj, self.cols-1)
         self.__completeExtension(obj)
@@ -1909,11 +2125,11 @@ class BarExtend(Compound):
     # BEGIN: Polygonal expand system
 
     def __revolvePoly(self, obj):
-        torev = obj.getRoot(BarRoot._vplb_).copy() if obj.rows else []
+        torev = obj.getRoot(FrameRoot._vplb_).copy() if obj.rows else []
         return self._revVertPolyY(obj, torev) if len(torev) else None
 
     def __moveVertsToThor(self, obj, verts):
-        tos = obj.getRoot(BarRoot._h1ba_).copy() if obj.h1 else list()
+        tos = obj.getRoot(FrameRoot._h1ba_).copy() if obj.h1 else list()
         tps = Extend._allp_, Extend._vert_
         [ obj.extendPlg(t, tos.copy()) for t in tps ]
         tos.extend(verts.copy())
@@ -1921,12 +2137,12 @@ class BarExtend(Compound):
         return self._movePolyVToThor(obj, tos)
 
     def __dropHoriPolys(self, obj):
-        hplb = obj.getRoot(BarRoot._hplb_) or list()
+        hplb = obj.getRoot(FrameRoot._hplb_) or list()
         return self._dropPolyH1s(obj, hplb.copy())
 
     def _collectPartial(self, obj):
         if not self.h1: return
-        btm = obj.getRoot(BarRoot._botm_)
+        btm = obj.getRoot(FrameRoot._botm_)
         return super()._collectPartial(obj, btm)
 
     # END: Polygonal expand system
@@ -1934,8 +2150,8 @@ class BarExtend(Compound):
     # BEGIN: Extension expand system
 
     def _revHoriExtY(self, obj):
-        lng = obj.getRoot(BarRoot._lnge_).copy()
-        to = obj.getRoot(BarRoot._shte_).copy()
+        lng = obj.getRoot(FrameRoot._lnge_).copy()
+        to = obj.getRoot(FrameRoot._shte_).copy()
         to = lng if not len(to) else to
         return to, lng, super()._revHoriExtY(obj, to)
 
@@ -1963,24 +2179,30 @@ class BarExtend(Compound):
     def __collectRoof(self, obj, lng, extm):
         ok = self.rows is int(obj.DETAILS/4) and obj.quatro
         tp = Extend._alle_
-        if obj.thor and ok or obj.dome and ok: return
-        elif not self.rows: return extm(tp, lng)
+        if obj.thor and ok: return
+        # elif obj.dome and ok or not self.rows: return extm(tp, lng)
         return extm(tp, lng)
 
     # END: Extension expand system
 
-class BarCompound(BarExtend):
+class FrameCompound(FrameExtend):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._collectTotal(self.obj)
 
-# END: Basic flexible Bar Root extends and compound
+# END: Basic flexible Frame Root extends and compound
 
 # BEGIN: Conveyor system
 
 class Conveyor(object): pass
 
 # END: Conveyor system
+
+# BEGIN: Test system
+
+class Test(object): pass
+
+# END: Test system
 
 # BEGIN: Coding
 
@@ -2033,33 +2255,37 @@ def buildObject(OBJ, obj, s, root, EXTEND, COMPOUND, ROTATE, MOVE):
         o.move(vector, times, copy)
     return o
 
-if __name__ == "__main__" and CONFIG:
+main = __name__ == "__main__"
+
+if main and CONFIG:
 
     t = time.time()
 
-    args = convert(MONO or BAR, LONG, H1, OR, DETAILS, THORUS, COMPOUND, PRINT3D)
+    MTL = MONO or COVER or FRAME
+
+    args = convert(MTL, LONG, H1, OR, DETAILS, THORUS, COMPOUND, PRINT3D)
 
     if       THORUS.get('CORNER') and not THORUS.get('DISC'):
-        OBJ = BarCorner if not MONO else MonoCorner
-        obj = OBJ(*args, cup=CLEANUP)
+        OBJ = FrameCorner if not MONO else MonoCorner
+        obj = OBJ(*args, cleanup=CLEANUP)
         OBJ = str('CORNER')
 
     elif not THORUS.get('CORNER') and     THORUS.get('DISC'):
-        OBJ = BarDisc if not MONO else MonoDisc
-        obj = OBJ(*args, cup=CLEANUP)
+        OBJ = FrameDisc if not MONO else MonoDisc
+        obj = OBJ(*args, cleanup=CLEANUP)
         OBJ = str('DISC')
 
     elif     THORUS.get('CORNER') and     THORUS.get('DISC'):
-        OBJ = BarThorus if not MONO else MonoThorus
-        obj = OBJ(*args, cup=CLEANUP)
+        OBJ = FrameThorus if not MONO else MonoThorus
+        obj = OBJ(*args, cleanup=CLEANUP)
         OBJ = str('THORUS')
 
     else:
-        OBJ = BarDome if not MONO else MonoDome
-        obj = OBJ(*args, cup=CLEANUP)
+        OBJ = FrameDome if not MONO else MonoDome
+        obj = OBJ(*args, cleanup=CLEANUP)
         OBJ = str('DOME')
 
-    COMP = BarCompound if not MONO else MonoCompound
+    COMP = FrameCompound if not MONO else MonoCompound
 
     obj.wireFrame(ROWS, COLS, vis=WIREFRAME)
     if not ROOT: exit(0)
@@ -2074,7 +2300,13 @@ if __name__ == "__main__" and CONFIG:
     s = t - m*60
     obj.cprint('Built in: {0} minutes, {1:.1f} seconds'.format(m, s))
 
-elif __name__ == "__main__" and not CONFIG:
-    "Start coding here if not CONFIG"
+elif main and not CONFIG and TEST:
+    "Run testcases"
     pass
+
+elif main:
+    "Start coding here disabling CONFIG and TEST"
+    # As example created "heart system":
+    pass
+
 
