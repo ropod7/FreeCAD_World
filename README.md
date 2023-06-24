@@ -4,7 +4,7 @@ Macro system of FreeCAD World
 In front of you a machine tool for the production of any FreeCAD Macros of any complexity with increased accuracy of calculation of target objects of polygonal and orthogonal geometry.
 At current stage it works as calc for practical designs of buildings and for overall development of kids, students, individuals and households.
 ## The Principle
-![principle](https://i.ibb.co/Kqkh0Ts/screenshot-2021-01-31-19-46-12.png = 640x)
+![principle](https://i.ibb.co/Kqkh0Ts/screenshot-2021-01-31-19-46-12.png)
 
 (Check out principle at: docs/principle.FCStd)
 
