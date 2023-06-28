@@ -1,7 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Macros source: https://github.com/ropod7/FreeCAD_World
+__Name__ = 'FreeCAD World'
+__Comment__ = 'Flexible parametric design of domical objects'
+__Author__ = 'ropod7'
+__Version__ = '0.1.0'
+__Date__ = '27.06.2023'
+__License__ = 'GNU General Public License v3.0'
+__Web__ = 'https://github.com/ropod7/FreeCAD_World'
+__Wiki__ = 'https://github.com/ropod7/FreeCAD_World/tree/master/docs'
+__Icon__ = ''
+__Help__ = 'Inscribed Polygon System'
+__Status__ = 'alpha'
+__Requires__ = 'python3'
+__Contact__ = 'https://forum.freecad.org/viewtopic.php?f=22&t=53551'
+__Communication__ = 'https://forum.freecad.org/viewtopic.php?f=29&t=53554'
+__Files__ = 'https://github.com/ropod7/FreeCAD_World/blob/master/dome.FCMacro'
 
 ###############################################################################
 #         ____   _____  __   _______ __  _____    _
@@ -12,29 +26,29 @@
 ###############################################################################
 
 # Root object params (mm):
-DETAILS  = int(12)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
-OR     = float(3000) # Outscribed R of polygon & carriage on X axis
-H1     = float(2000) # Height of 1st 'floor' & carriage on Z (or 0)
-LONG   = float(20000) # Extension & carriage on Y axis (or 0)
+DETAILS  = int(18)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
+OR     = float(1200) # Outscribed R of polygon (or inscribed polygon) & carriage on X axis
+H1     = float(1200) # Height of 1st 'floor' & carriage on Z (or 0)
+LONG   = float(1200) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
-    CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
-    DISC   = bool(False)  # Outer side of thorus. OR = OR*3
+    CORNER = bool(True), # Inner side of thorus. Outside R of dome becomes inside R
+    DISC   = bool(True)  # Outer side of thorus. OR = OR*3
 ) # template of SpreadSheet system of object:
-ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis (min: 0; max: DETAILS/4)
-COLS    = int(DETAILS/2)   # Number of cols revolving around Z axis (min: 0; max: DETAILS)
+ROWS    = int(DETAILS/4-3) # Number of rows revolving around Y axis (min: 0; max: DETAILS/4)
+COLS    = int(DETAILS)   # Number of cols revolving around Z axis (min: 0; max: DETAILS)
 
 # Materials (mm):
-# NB: [!!!] more DETAILS and higher OR returns more complexity in case of MONO thickness. [!!!]
-MONO   = float(0)        # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not COVER and not FRAME
-COVER  = float(0)        # Ply-wood thickness to cover FRAME (OR becomes IR). if not MONO and COVER > 0: not FRAME
+MONO   = float(200)        # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not FRAME
 FRAME = tuple((50, 200)) # (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
 
-# Constructions:
-HOUSE = dict( # if BUILD == True: Receives COVER and FRAME from Materials.
-    BUILD     = bool(False), # Build Frame House or not.
-    CONTOUR    = int(50),   # Ventilated contour (just space between layers of FRAME and COVER or 0).
-    INSULANT = float(FRAME[1]), # Insulant thickness or 0.
-)
+# Construction (under construction :):
+# HOUSE = dict( # if BUILD == True: Receives complete covered and insulated DOME or semi THORUS.
+    # BUILD     = bool(False), # Build Frame House or not.
+    # CONTOUR    = int(50),   # Ventilated contour (just space between layers of FRAME and COVER or 0).
+    # INSULANT   = int(150), # Insulant thickness. Must be lower than FRAME BAR height.
+    # COVER      = int(12),  # Ply-wood thickness.
+    # FRAME    = tuple((50, 200)) # (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
+# )
 
 # Compound options:
 EXTEND   = bool(True)   # Root as open contour system (fill up long, cols etc.)
@@ -42,7 +56,7 @@ COMPOUND = bool(True)   # Simple compounded object (if LONG: COLS <= DETAILS/2)
 
 # Movement (mm):
 ROTATE = dict( # Rotate compounded or extended object
-    DO       = bool(True),     # Do rotate or not
+    DO       = bool(False),     # Do rotate or not
     ANGLE  =  float(45),     # Angle to rotate object
     CENTER = tuple((0, 0, 0)), # Center of axis to rotate object (x, y, z)
     AXIS   = tuple((0, 0, 1)),  # Rotation axis (around x, around y, around z)
@@ -50,8 +64,8 @@ ROTATE = dict( # Rotate compounded or extended object
     TIMES     = int(1)          # How many pcs to COPY. eg. if COPY: polar array.
 )
 MOVE = dict( # Move compounded or extended object
-    DO       = bool(True),    # Do move or not
-    VECTOR = tuple((0, 25, 0)), # Vector to move object (x, y, z)
+    DO       = bool(False),    # Do move or not
+    VECTOR = tuple((-1950/2, -1950/2, 0)), # Vector to move object (x, y, z)
     COPY     = bool(False),     # Copy object to move
     TIMES     = int(1)          # How many pcs to COPY. eg. if COPY: ortho array.
 )
@@ -125,6 +139,7 @@ from collections.abc import MutableMapping
 # BEGIN: Trigonometrical Common Geometry
 
 class Trigon(object):
+
     def __init__(self, r, d):
         "Receives OR and DETAILS definitions"
         assert isinstance(r, float), "TypeError: r (OR) must be float"
@@ -233,7 +248,7 @@ class Trigon(object):
         for i in range(n):
             f1, f2 = f2, f1+f2
             if f1 >= n: break
-        return f1 is n
+        return f1 == n
 
 class TwoPoints(Trigon):
     """
@@ -247,10 +262,10 @@ class TwoPoints(Trigon):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.oPOINTS = list()
-        self.iPOINTS = list()
 
     def oPolyPoints(self, Or):
         x = y = 0
+        B = self.DETAIL_B
         A = self.DETAIL_A
         base = self.isoscelesBase(Or)
         points = [[Or, y]]
@@ -267,7 +282,7 @@ class TwoPoints(Trigon):
             """
             y = 0.01 if not y and not x and self.quatro else y
             points.extend([ [Or - x, y] ])
-            A -= self.DETAIL_B
+            A -= B
         return points
 
 class ThorusPoints(TwoPoints):
@@ -317,6 +332,8 @@ class ThorusPoints(TwoPoints):
         if self.dome: return (x, y, z)
         x = self.__cornerXPoint(x, y, MTT)
         y = self.__cornerYPoint(x, y, z)
+        x += self.__cornerMonoXMove(y)
+        y += self.__cornerMonoYMove(y)
         return (x, y, z)
 
     def _pntVPolyMnr(self, x, z):
@@ -334,14 +351,27 @@ class ThorusPoints(TwoPoints):
 
     def __cornerYPoint(self, x, y, z):
         root_x, root_y = self.__fixedXYRoots(x, y)
-        if not y and z is self.ZERO_Z+self.OR-z:
+        if not y and z == self.ZERO_Z+self.OR-z and z != self.OR:
             return root_y * 2
         elif not y:
             return 0
         return y + (root_y - y)*2
 
     def __addititionalMove(self, MTT):
-        return self.rightHypothenuse( MTT ) - MTT
+        if self.MTL.FRAME:
+            return self.rightHypothenuse( MTT ) - MTT
+        return 0
+
+    def __cornerMonoXMove(self, y):
+        if self.MTL.MONO and self.corn:
+            x = self.rightSideB_ByAA(self.MTL.T, self.DETAIL_A)
+            return x if not y else -x
+        return 0
+
+    def __cornerMonoYMove(self, y):
+        if self.MTL.MONO and self.corn:
+            return self.MTL.T if y else -self.MTL.T
+        return 0
 
     @property
     def pointSystem(self):
@@ -373,6 +403,10 @@ class ThorusPoints(TwoPoints):
     @property
     def elongated(self):
         return self.pointSystem in __class__._roots_[1:]
+
+    @property
+    def dometic(self):
+        return True if self.dome or self.thor else False
 
 class ExtensionPoints(ThorusPoints):
     _root_ = str('long')
@@ -436,6 +470,7 @@ class ExtensionPoints(ThorusPoints):
         return self.__insH1N_
 
 class RightPoints(ExtensionPoints):
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -467,6 +502,7 @@ from FreeCAD import Base
 import Draft, Part
 
 class MacroRoot(object):
+
     def __init__(self):
         self.pl = FreeCAD.Placement()
 
@@ -539,6 +575,7 @@ class MacroRoot(object):
         return self.fcDoc.RootObjects
 
 class FreeCADObject(MacroRoot):
+
     def __init__(self, cleanup=False):
         "Receives CLEANUP definition"
         super().__init__()
@@ -557,7 +594,7 @@ class FreeCADObject(MacroRoot):
         lr = len(self.roots)
         if not lr or not cleanup: return self.recompute()
         [ self.remove(obj.Name) for obj in self.roots ]
-        return self.cleanUp()
+        return self.cleanUp(cleanup=cleanup)
 
     def GuiObject(self, obj):
         return self.guiDoc.getObject(obj.Name)
@@ -574,6 +611,7 @@ class FreeCADObject(MacroRoot):
         return self.fcDoc.ActiveObject
 
 class BaseTools(FreeCADObject):
+
     def Wire(self, points, vis=False, **kwargs):
         self.__typeLenCheck(points, list)
         p = [ self.vector(*ps) for ps in points ]
@@ -591,7 +629,7 @@ class BaseTools(FreeCADObject):
         return self._setVisibility(polygon, vis)
 
     def Surface(self, edges, vis=False):
-        assert len(edges) is 2, "LengthError: number of edges must be 2"
+        assert len(edges) == 2, "LengthError: number of edges must be 2"
         edge1, edge2 = edges
         s = self.AddObject('Part::RuledSurface', 'Surface')
         self.ActiveObject.Curve1 = ( edge1, ['Edge1'] )
@@ -618,7 +656,7 @@ class BaseTools(FreeCADObject):
         return self._setVisibility(e, vis)
 
     def Loft(self, faces, ruled=False, closed=False):
-        assert len(faces) is 2, "LengthError: number of faces must be 2"
+        assert len(faces) == 2, "LengthError: number of faces must be 2"
         loft = self.AddObject('Part::Loft', 'Loft')
         loft.Sections = faces
         loft.Solid = self.solid
@@ -630,14 +668,11 @@ class BaseTools(FreeCADObject):
     def Slice(self, obj, vector=(0,1,0), move=0, hideobj=True):
         wires = list()
         shape = obj.Shape
-        # shape=FreeCAD.getDocument("Unnamed").Loft002.Shape
-        # bv = Base.Vector(*vector)
         bv = self.vector(*vector)
         [ wires.append(i) for i in shape.slice(bv, move) ]
         feature = self.__Feature()
         feature.Shape = self.__Compound(wires)
         feature.purgeTouched()
-        # del s, comp, wires, shape
         return self._setVisibility(obj, hideobj) if hideobj else obj
 
     def Rotate(self, objs, A, z, a, cp=True, vis=True):
@@ -675,6 +710,7 @@ class BaseTools(FreeCADObject):
         self.__solid = solid
 
 class Model(BaseTools):
+
     def wire(self, points, **kwargs):
         self.recompute()
         return [ self.Wire(points,**kwargs) ]
@@ -684,14 +720,14 @@ class Model(BaseTools):
 
     def cut(self, bases, tool, **kwargs):
         assert isinstance(bases, list) and len(bases), "bases must be not empty list"
-        assert isinstance(tool, list) and len(tool) is 1, "one tool must be in list"
+        assert isinstance(tool, list) and len(tool) == 1, "one tool must be in list"
         r = list()
         [ r.extend(self.__cut(base, tool, **kwargs)) for base in bases ]
         self.recompute()
         return r
 
     def surface(self, e1, e2, **kwargs):
-        assert len(e1) and len(e1) is len(e2), "empty edges list or lists not equal"
+        assert len(e1) and len(e1) == len(e2), "empty edges list or lists not equal"
         r = list()
         [ r.extend(self.__surface([e1[i],e2[i]],**kwargs)) for i in range(len(e1)) ]
         self.recompute()
@@ -705,7 +741,7 @@ class Model(BaseTools):
         return r
 
     def loft(self, f1, f2, **kwargs):
-        assert len(f1) and len(f1) is len(f2), "empty faces list or lists not equal"
+        assert len(f1) and len(f1) == len(f2), "empty faces list or lists not equal"
         l = list()
         [ l.extend(self.__loft([f1[i],f2[i]],**kwargs)) for i in range(len(f1)) ]
         self.recompute()
@@ -725,7 +761,7 @@ class Model(BaseTools):
         return [ self.Surface(edges, **kwargs) ]
 
     def __loft(self, faces, **kwargs):
-        assert isinstance(faces, list) and len(faces) is 2, \
+        assert isinstance(faces, list) and len(faces) == 2, \
             "TypeError: faces must be list with length 2"
         return [ self.Loft(faces, **kwargs) ]
 
@@ -733,6 +769,7 @@ class Model(BaseTools):
         return [ self.Extrude(surface, direction, height, **kwargs) ]
 
 class Movement(Model):
+
     def rotate(self, objs, angle, zero, axis, times, cp=True, **kwargs):
         assert isinstance(objs, list), "TypeError: objs must be list"
         if not len(objs): return list()
@@ -762,14 +799,15 @@ class Movement(Model):
 # BEGIN: Object creation system
 
 class ObjectMovement(Movement):
+
     """Base movement mechanism of machine tool"""
     def __init__(self, *args, cleanup=False, **kwargs):
         Blocks.__init__(self, *args, **kwargs)
         FreeCADObject.__init__(self, cleanup=cleanup)
 
-    def xMirror(self, objs, y=0, **kwargs):
+    def xMirror(self, objs, x=0, y=0, **kwargs):
         angle = 180
-        zero = (self.ZERO_X, y, 0)
+        zero = (x or self.ZERO_X, y, 0)
         axis = (0,0,1)
         return self.rotate(objs, angle, zero, axis, 1, **kwargs)
 
@@ -995,6 +1033,7 @@ class Blocks(MutableMapping, RightPoints):
 class ProductionCalc(object): pass
 
 class Materials(list, ProductionCalc):
+
     def __init__(self, width=0, height=0, thickn=0, RGB='#ffffff', **kwargs):
         assert width and height or thickn, "Undefined material dimensions"
         assert isinstance(RGB, str), "TypeError: color is str"
@@ -1011,18 +1050,28 @@ class Materials(list, ProductionCalc):
     @property
     def H(self):
         "Returns frame height"
-        return self.__frame[1]
+        return self.__frame[1] if self.__frame[0] else 0
 
     @property
     def T(self):
-        "Returns frame thickness"
+        "Returns mono thickness"
         return self.__frame[1]
+
+    @property
+    def FRAME(self):
+        return True if self.__frame[0] and self.__frame[1] else False
+
+    @property
+    def MONO(self):
+        return False if self.__frame[0] and self.__frame[1] else True
 
     @property
     def RGB(self):
         return self.__RGB
 
 class WireFrame(ObjectMovement, Blocks):
+    _btm_ = str('bottom')
+    _hpl_ = str('hPoly')
     _h1_  = str('h1')
     _vpl_ = str('vPoly')
     _mp_  = str('marking')
@@ -1032,9 +1081,19 @@ class WireFrame(ObjectMovement, Blocks):
         zl = [0, self.ZERO_Z or MTL.W]
         points = [(0, 0, z) for z in zl]
         wire1 = self.wire(points, vis=True) if set(zl) != {0} else list()
-        wire2 = self.wire([(0, 0, 0), (0, -MTL.H, 0)], vis=True)
+        wire2 = self.wire([(0, 0, 0), (0, -MTL.H or -MTL.T, 0)], vis=True)
         wires = self._markingArray(wire1, wire2)
         return wires
+
+    def _bottom(self, w, MTL, mtl, **kwargs):
+        if not self.h1 or not self.cols: return list()
+        w = self.rightHypothenuse(MTL.W) if w and self.MTL.FRAME else w
+        tp = __class__._btm_ + self.pointSystem + mtl
+        p = self.oPolyPoints(self.OR - w)[:2]
+        wire = self.appendWfr(tp, self.wire(
+            [self._pntBtmMnr(x,y,MTL.H, **kwargs) for x,y in p],
+            vis=self.wfVisibility ))
+        return self.getWfr(tp)
 
     def _h1(self, w, height, MTT, mtl, horison=True):
         if self._checkInWfr(height): return list()
@@ -1044,6 +1103,28 @@ class WireFrame(ObjectMovement, Blocks):
         operator(tp, self.wire([
             (x, 0, 0), (x, 0, height)
             ], vis=self.wfVisibility))
+        return self.getWfr(tp)
+
+    def _horizonPoly(self, ny, w, mtl, MTH):
+        if not self.cols: return list()
+        tp = __class__._hpl_ + self.pointSystem + mtl
+        if self.MTL.FRAME:
+            self.appendWfr(tp, [ ] )
+        hpll = len(self.getWfr(tp))-1
+        amount = self.__hPolyNumber(ny) if ny else 1
+        for i in range(amount, -1, -1):
+            points = self.oPOINTS[0][i]
+            angle = self.DETAIL_B*i
+            reduc = self.rightSideB_ByA(w or MTH, angle)
+            Or = points[0]-reduc if w else points[0]
+            drop = self.rightCathetusA_ByA(MTH, angle)
+            h1 = points[1] + self.ZERO_Z
+            h1 = h1 - drop if w else h1
+            points = self.oPolyPoints(Or)[:2]
+            wire = self.wire([
+                self._pntHPolyMnr(x,y,h1,MTH) for x,y in points
+                ], vis=self.wfVisibility)
+            self.extendDoubledWfr(tp, hpll, wire)
         return self.getWfr(tp)
 
     def _verticalPoly(self, ny, mtl, horison=True):
@@ -1062,6 +1143,12 @@ class WireFrame(ObjectMovement, Blocks):
     def _getWfType(self, wf, cls=False):
         tp = wf + self.pointSystem
         return tp + cls._mtrl_ if cls else tp
+
+    def __hPolyNumber(self, ny):
+        expr = self.equal_rows and self.quatro
+        expr0 = self.dome and expr
+        expr1 = self.thor and expr and not self.MTL.MONO
+        return ny-1 if expr0 or expr1 else ny
 
     @property
     def wfVisibility(self):
@@ -1102,6 +1189,19 @@ class Root(WireFrame):
     def cols(self):
         return self.__cols
 
+    @property
+    def less_rows(self):
+        return self.rows < self.POLY_QUARTER
+
+    @property
+    def equal_rows(self):
+        return self.rows == self.POLY_QUARTER
+
+    @property
+    def coupler(self):
+        "If DETAILS / 4 == just couple of ROWS in COLS"
+        return self.POLY_QUARTER < 3
+
     @rows.setter
     def rows(self, number):
         self.__rows = number
@@ -1110,52 +1210,209 @@ class Root(WireFrame):
     def cols(self, number):
         self.__cols = number
 
+class ModelLayer(Root):
+
+    def _polygonCutTool(self, height, direction=(0,1,0), **kwargs):
+        placement = (self.ZERO_X, 0, self.ZERO_Z)
+        p = self.polygon(self.DETAILS, self.OR+height*2, placement)
+        p = self._rotatePolygonToCut(p, placement)
+        h = height if self.MTL.FRAME else height * 2
+        return self.extrude(p, direction, h, vis=False, **kwargs)
+
 # END: Object creation system
 
 # BEGIN: Mono root creation system
 
-class MonoBlocks(Root):
+class MonoMovement(ModelLayer):
+
+    def _horisonToolsRotation(self, t, bw=False):
+        angle = self.DETAIL_B/2 if bw else -self.DETAIL_B/2
+        return self.rotate(t, angle, (0,0,0), (0,0,1), 1, cp=False)
+
+    def _verticalToolsRotation(self, t, n, mid=False, bw=False):
+        B = -self.DETAIL_B if self.corn else self.DETAIL_B
+        A = self.DETAIL_A
+        n = n if mid else n-1
+        x = self.OR*2
+        x = x if self.dome else self.rightCathetusA_ByA(x, A)-self.MTL.T
+        z = self.h1
+        dir_y = -1 if bw else 1
+        return self.rotate(t, B*n, (x,0,z), (0,dir_y,0), 1, cp=False)
+
+class MonoBlocks(MonoMovement):
     _face_ = str('faces')
-    _loft_ = str('lofts')
+    _tool_ = str('tools')
 
     def extendFcs(self, name, l):
         return self._extendRoot(__class__._face_, name, l)
 
+    def appendFcs(self, name, l):
+        return self._appendRoot(__class__._face_, name, l)
+
     def getFcs(self, name):
         return self._getRoot(__class__._face_, name)
 
-    def extendLft(self, name, l):
-        return self._extendRoot(__class__._loft_, name, l)
+    def appendTool(self, name, l):
+        return self._appendRoot(__class__._tool_, name, l)
 
-    def getLft(self, name):
-        return self._getRoot(__class__._loft_, name)
+    def extendTool(self, name, l):
+        return self._extendRoot(__class__._tool_, name, l)
 
-class MonoWireFrame(MonoBlocks):
+    def getTool(self, name):
+        return self._getRoot(__class__._tool_, name)
+
+class MonoWireFrame(FrameWireFrame, MonoBlocks):
     _mtl_ = str('mono')
-    _vmp_ = str('vMonoPoly') + _mtl_
 
     def _createMonoWireFrame(self, ny, MTL, **kwargs):
         mtl = __class__._mtl_
+        self.oPOINTS.append( self.oPolyPoints(self.OR) )
+        self.insertionLongUnits(self.long, 0)
         c1, c2 = 0, self.rightHypothenuse(MTL.T)
         c3 = self.rightHypothenuse(c2)
         hd, _ = self.insertionH1Units(self.h1, MTL.T)
-        self.insertionLongUnits(self.long, MTL.T)
-        for c in [c1, c2, c3]:
-            p = self.oPolyPoints(self.OR-c)
-            self.oPOINTS.append(p)
-            m = MTL.T if not c is c2 else c2
-            self._h1(c, hd, m, mtl, horison=False)
-            self._verticalPoly(ny, mtl, horison=False)
+        [ self._bottom(z, MTL, mtl) for z in [c1, c2] ]
+        for c in [c1, c2]:
+            if self.thor: continue
+            self.oPOINTS.append( self.oPolyPoints(self.OR-c) )
+            self._h1(c, hd, MTL.T, mtl, horison=False)
+            self._verticalPoly(ny, mtl)
+        self.__createHPolyWires(ny, mtl, MTL)
+        self.__createToolWire()
         self._marking(MTL)
         return self.get(Blocks._wfr_)
 
-class MonoRoot(MonoWireFrame):
+    def __createToolWire(self):
+        if not self.rows or self.thor: return
+        y = self.OR*2 if self.elongated and self.coupler else self.OR
+        w = self.wire([
+            (0, y, self.h1), (0, -y, self.h1)
+            ], vis=self.wfVisibility)
+        self.toolWire = self._rotateMoveHiddenMonoWires(w)
+        return self.toolWire
+
+    def __createHPolyWires(self, ny, mtl, MTL):
+        if not self.rows: return
+        tp = WireFrame._hpl_ + self.pointSystem + mtl
+        self.appendWfr(tp, [ ] )
+        if self.less_rows or not self.quatro or not self.dome:
+            return self._horizonPoly(ny, 0, mtl, MTL.T)
+        w = self.wire([
+            (0, 1, self.h1+self.OR), (0, -1, self.h1+self.OR)
+            ], vis=self.wfVisibility)
+        self.extendDoubledWfr(tp, 0, self._rotateMoveHiddenMonoWires(w))
+        self._horizonPoly(ny, 0, mtl, MTL.T)
+        return self.getWfr(tp)
+
+class MonoModelLayer(MonoWireFrame):
+    _tool_ = str('tools')
+
+    def _createPolyH1Face(self, tp):
+        if not self.cols or not self.h1: return
+        w, f = self.getWfr(tp)
+        f = self.surface(w, f)
+        return self.extendFcs(tp, f)
+
+    def _createH1Face(self, tp):
+        wf = self.getWfr(tp)
+        f  = self.surface([wf[0]], [wf[1]])
+        return self.extendFcs(tp, f)
+
+    def _createPolyFaces(self, tp):
+        if not self.rows: return
+        wf  = self.getWfr(tp)[0]
+        rng = range(len(wf)-1)
+        [ self.extendFcs(tp, self.surface( [wf[i]], [wf[i+1]] )) for i in rng ]
+        self.__buildTools(tp)
+        return self.getFcs(tp)
+
+    def _createExtPolyFaces(self, tp, cls=None):
+        if not self.long or not self.rows: return
+        w, f = self.getWfr(tp)
+        f = self.surface(w, f)
+        return self.extendFcs(tp, f)
+
+    def __buildTools(self, tp):
+        if not self.rows: return
+        t = self.MTL.T
+        f, tp = self.__createPolyToolFaces(tp)
+        self.FrontPTool  = self._polygonCutTool(t, s=False)
+        self.RearPTool   = self._polygonCutTool(t, direction=(0,-1,0), s=False)
+        first, mid, last = self.__prepareTools(f)
+        self.appendTool(tp, mid)
+        return self.getTool(tp)
+
+    def __createPolyToolFaces(self, tp):
+        if not self.rows: return
+        hpwf = self.getWfr(tp)
+        tp   = __class__._tool_ + self.pointSystem
+        rng  = range(len(hpwf[0]))
+        [ self.extendFcs(tp, self.surface([self.toolWire[0]], [hpwf[0][i]])) for i in rng ]
+        return self.getFcs(tp), tp
+
+    def __prepareTools(self, f):
+        b = self._horisonToolsRotation(f)
+        first = self.__createFirstBottomTool(b)
+        mid   = self.__createMedianTools(b)
+        last  = self.__createLastTopTool(b)
+        return first, mid, last
+
+    def __createFirstBottomTool(self, f):
+        t = self.__toolsExtrude([f[-1]], btm=True)
+        self.firstBottomTool = self._horisonToolsRotation(t, bw=True)
+        return self.firstBottomTool
+
+    def __createLastTopTool(self, f):
+        t = self._verticalToolsRotation([f[0]], len(f))
+        t = self.__toolsExtrude(t)
+        t = self._verticalToolsRotation(t, len(f), bw=True)
+        self.lastTopTool = self._horisonToolsRotation(t, bw=True)
+        return self.lastTopTool
+
+    def __createMedianTools(self, f):
+        temp, mid, l, f, i = list(), list(), len(f), f[1:-1], 2
+        for j in range(len(f)):
+            k = self._verticalToolsRotation([f[j]], l-i, mid=True)
+            b = self.__toolsExtrude(k, btm=True)
+            b = self._verticalToolsRotation(b, l-i, mid=True, bw=True)
+            t = self.__toolsExtrude(k)
+            t = self._verticalToolsRotation(t, l-i, mid=True, bw=True)
+            [ temp.append(o) for o in [b, t] ]
+            i += 1
+        [mid.append(self._horisonToolsRotation(o, bw=True)) for o in temp]
+        return mid
+
+    def __toolsExtrude(self, f, btm=False):
+        dir_z = -1 if btm else 1
+        return self.extrude(f, (0,0,dir_z),  self.MTL.T, s=False)
+
+    def _cutPolyPolys(self, e):
+        tp = __class__._tool_ + self.pointSystem
+        tools = self.getTool(tp)[0]
+        e = self.__cutRotateByPolygon(e, self.RearPTool, z=-1)
+        r = self.__cutRotateByPolygon(e, self.FrontPTool)
+        tools.insert(0, self.lastTopTool)
+        tools.append(self.firstBottomTool)
+        obj, blocks, k = list(), list(), 0
+        for i in range(len(r)):
+            j = (i+1) * 2 - 1
+            obj.append(  self.cut([r[i]], tools[j]))
+            blocks.extend(self.cut(obj[i], tools[k]))
+            k += 2
+        return blocks
+
+    def __cutRotateByPolygon(self, e, tool, z=1):
+        e = self.cut(e, tool)
+        b = self.DETAIL_B
+        return self.rotate(e, b, (0,0,0), (0,0,z), 1, cp=False)
+
+class MonoRoot(MonoModelLayer):
     _mtrl_ = MonoWireFrame._mtl_
-    _tmpf_ = str('template')
-    _mph1_ = str('polyh1')  + _mtrl_
-    _exth_ = str('exth1')   + _mtrl_
-    _poly_ = str('poly')    + _mtrl_
-    _extp_ = str('extpoly') + _mtrl_
+    _tool_ = MonoModelLayer._tool_
+    _btm_  = WireFrame._btm_
+    _h1_   = WireFrame._h1_
+    _vpl_  = WireFrame._vpl_
+    _hpl_  = WireFrame._hpl_
 
     def __init__(self, tp, thickn, *args, **kwargs):
         assert thickn, "No Mono thickness defined"
@@ -1168,89 +1425,57 @@ class MonoRoot(MonoWireFrame):
 
     def _build(self, **kwargs):
         super()._build(**kwargs)
-        self.__buildRootFaces()
         self.__buildPolyH1()
         self.__buildExtH1()
         self.__buildPolyPoly()
         self.__buildExtPoly()
 
-    def __buildRootFaces(self):
-        wfrms = [WireFrame._vpl_, WireFrame._h1_]
-        tmp = __class__._tmpf_
-        pf = [__class__._extp_+tmp,__class__._poly_+tmp]
-        hf = [__class__._mph1_+tmp,__class__._exth_+tmp]
-        faces = [pf, hf]
-        for i in range(len(faces)):
-            wf = self._getWfType(wfrms[i], cls=__class__)
-            self.__faceBuilder(faces[i], wf)
-        return self.get(MonoBlocks._face_)
-
     def __buildPolyH1(self):
         if not self.h1 or not self.cols: return
-        tmp = __class__._tmpf_
-        f = self.getFcs(__class__._mph1_+tmp).copy()
-        f = self.xMirror(f) if self.thor else f
-        f.extend(self.pArrayZB(f, 1, vis=False))
-        mono = self.__loftBuilder(f)
-        return self.extendLft(__class__._mph1_, mono)
+        tp = WireFrame._btm_
+        tpf = self._getWfType(tp, cls=__class__) # thor
+        ph1f = self._createPolyH1Face(tpf)
+        f = self.getFcs(tpf)
+        assert ph1f is f, "Lists of faces not equal"
+        block = self.extrude(f, (0,0,1), self.insH1L, s=False)
+        return self.extendRoot(tp, block)
 
     def __buildExtH1(self):
         if not self.h1 or not self.long or self.thor: return
-        tmp = __class__._tmpf_
-        h1f = self.__extFacer(__class__._exth_+tmp)
-        mono = self.__loftBuilder(h1f)
-        return self.extendLft(__class__._exth_, mono)
+        tp = __class__._h1_
+        tpf = self._getWfType(tp, cls=__class__) # not thor
+        h1f = self._createH1Face(tpf)
+        f = self.getFcs(tpf)
+        assert h1f is f, "Lists of faces not equal"
+        block = self.extrude(f, (0,-1,0), self.insLongL, s=False)
+        return self.extendRoot(tp, block)
 
     def __buildPolyPoly(self):
         if not self.rows or not self.cols: return
-        tmp = __class__._tmpf_
-        poly = __class__._poly_
-        f = self.getFcs(poly+tmp).copy()
-        f = self.__thorPolyFacer(f) if self.thor else self.__polyFacer(f)
-        monos = self.__loftBuilder( f )
-        return self.extendLft(poly, monos)
+        tp = __class__._hpl_
+        tpf  = self._getWfType(tp, cls=__class__) # thor
+        hpf = self._createPolyFaces(tpf)
+        f = self.getFcs(tpf)
+        assert hpf is f, "Lists of faces not equal"
+        f = self._turnToExtrude(f)
+        dir_x = 1 if self.corn else -1
+        e = self.extrude(f, (dir_x,0,0), self.MTL.T, s=False)
+        e = self._turnAfterExtrude(e)
+        blocks = self._cutPolyPolys(e)
+        return self.extendRoot(tp, blocks)
 
     def __buildExtPoly(self):
         if not self.long or self.thor or not self.rows: return
-        tmp = __class__._tmpf_
-        plf = self.__extFacer(__class__._extp_+tmp)
-        mono = self.__loftBuilder(plf)
-        return self.extendLft(__class__._extp_, mono)
-
-    def __extFacer(self, fc):
-        f = self.getFcs(fc).copy()
-        f.extend(self.move(f, 0,-self.insLongL,0, 1, vis=False))
-        return f
-
-    def __thorPolyFacer(self, plf):
-        f = self.xMirror( plf , vis=False)
-        return self.__polyFacer(f)
-
-    def __polyFacer(self, face):
-        expr = self.pointSystem in ThorusPoints._roots_[-2:]
-        n = self.rows-1 if not expr else (self.rows-1)*-1
-        face.extend(self.pArrayYB(face, n, vis=False))
-        face.extend(self.pArrayZB(face, 1, vis=False))
-        return face
-
-    def __faceBuilder(self, fc, wfr):
-        wf = self.getWfr(wfr)
-        if isinstance(wf, type(None)) or not len(wf): return
-        extm = self.extendFcs
-        surf = self.surface
-        rng = range(len(fc))
-        return [ extm(fc[i], surf([wf[0]], [wf[i+1]])) for i in rng ]
-
-    def __loftBuilder(self, objs):
-        assert len(objs) and not len(objs) % 2, \
-            "Zero objects length or not in range"
-        bf, ff = list(), list()
-        bfa, ffa = bf.append, ff.append
-        lo = int(len(objs)/2)
-        [ [bfa(objs[i]), ffa(objs[i+lo])] for i in range(lo) ]
-        return self.loft(bf, ff)
+        tp = __class__._vpl_
+        tpf = self._getWfType(tp, cls=__class__) # not thor
+        epf = self._createExtPolyFaces(tpf)
+        f = self.getFcs(tpf)
+        assert epf is f, "Lists of faces not equal"
+        block = self.extrude(f, (0,-1,0), self.insLongL, s=False)
+        return self.extendRoot(tp, block)
 
 class MonoDome(MonoRoot):
+
     def __init__(self, *args, **kwargs):
         super().__init__(Root._dome_, *args, **kwargs)
 
@@ -1258,6 +1483,7 @@ class MonoDome(MonoRoot):
         self._build(**kwargs)
 
 class MonoCorner(MonoRoot):
+
     def __init__(self, *args, **kwargs):
         super().__init__(Root._corn_, *args, **kwargs)
 
@@ -1265,6 +1491,7 @@ class MonoCorner(MonoRoot):
         return self._build(**kwargs)
 
 class MonoDisc(MonoRoot):
+
     def __init__(self, *args, **kwargs):
         super().__init__(Root._disc_, *args, **kwargs)
 
@@ -1272,6 +1499,7 @@ class MonoDisc(MonoRoot):
         return self._build(**kwargs)
 
 class MonoThorus(MonoRoot):
+
     def __init__(self, *args, **kwargs):
         super().__init__(Root._corn_, *args, **kwargs)
 
@@ -1307,90 +1535,10 @@ class MonoThorus(MonoRoot):
 
 # END: Mono root creation system
 
-# BEGIN: Cover root creation system
-
-class CoverBlocks(Root): pass
-
-class CoverWireFrame(CoverBlocks):
-    _mtl_ = str('cover')
-    _vcp_ = str('vCoverPoly') + _mtl_
-
-    def _createCoverWireFrame(self, ny, MTL, **kwargs):
-        mtl = __class__._mtl_
-
-
-class CoverRoot(CoverWireFrame):
-    def __init__(self, tp, thickn, *args, **kwargs):
-        assert thickn, "No Cover thickness defined"
-        self.MTL = Materials(thickn=thickn, **kwargs)
-        super().__init__(tp, *args, **kwargs)
-
-    def wireFrame(self, ny, nz, **kwargs):
-        super().wireFrame(ny, nz, **kwargs)
-        self._createCoverWireFrame(ny, self.MTL, **kwargs)
-
-    def _build(self, **kwargs): pass
-
-class CoverDome(CoverRoot):
-    def __init__(self, *args, **kwargs):
-        super().__init__(Root._dome_, *args, **kwargs)
-
-    def root(self, **kwargs):
-        self._build(**kwargs)
-
-class CoverCorner(CoverRoot):
-    def __init__(self, *args, **kwargs):
-        super().__init__(Root._corn_, *args, **kwargs)
-
-    def root(self, **kwargs):
-        return self._build(**kwargs)
-
-class CoverDisc(CoverRoot):
-    def __init__(self, *args, **kwargs):
-        super().__init__(Root._disc_, *args, **kwargs)
-
-    def root(self, **kwargs):
-        return self._build(**kwargs)
-
-class CoverThorus(CoverRoot):
-    def __init__(self, *args, **kwargs):
-        super().__init__(Root._corn_, *args, **kwargs)
-
-    def wireFrame(self, ny, nz, **kwargs):
-        Root.wireFrame(self, ny, nz)
-        self.__cornWireFrame(ny, **kwargs)
-        self.__thorWireFrame(ny, **kwargs)
-        return self.get(Blocks._wfr_)
-
-    def root(self, **kwargs):
-        self.__cornRoot(**kwargs)
-        self.__thorRoot(**kwargs)
-        return self.get(Blocks._roo_)
-
-    def __wireFrame(self, ny, **kwargs):
-        return self._createCoverWireFrame(ny, self.MTL, **kwargs)
-
-    def __cornWireFrame(self, ny, **kwargs):
-        self.pointSystem = Root._corn_
-        return self.__wireFrame(ny, **kwargs)
-
-    def __thorWireFrame(self, ny, **kwargs):
-        self.pointSystem = Root._thor_
-        return self.__wireFrame(ny, **kwargs)
-
-    def __cornRoot(self, **kwargs):
-        self.pointSystem = Root._corn_
-        return self._build(**kwargs)
-
-    def __thorRoot(self, **kwargs):
-        self.pointSystem = Root._thor_
-        return self._build(**kwargs)
-
-# END: Cover root creation system
-
 # BEGIN: Frame root creation system
 
-class FrameMovement(Root):
+class FrameMovement(ModelLayer):
+
     def rotateAndDrop(self, obj, MTL, **kwargs):
         "Bottom extension bar creation in case of H1 > 0"
         if not len(obj): return list()
@@ -1434,69 +1582,89 @@ class FrameMovement(Root):
 
     def _alignHorisonShortBar(self, bar, MTW):
         r = self.rows
-        t = self.POLY_QUARTER if r < self.POLY_QUARTER else r
+        t = self.POLY_QUARTER if self.less_rows else r
         t = -t if self.pointSystem in ThorusPoints._roots_[-2:] else t
         bar = self.pArrayYB( bar, -t, cp=False)
         t = -1 if not self.disc else 1
         return self.pArrayYBO(bar, t, cp=False) # in case of not self.quatro
 
     def _alignHorisonLongBar(self, bar, MTW):
-        less = self.rows < self.POLY_QUARTER
-        if not less and self.quatro: return bar
+        if not self.less_rows and self.quatro: return bar
         odd = self.POLY_QUARTER - self.rows
         odd = odd if not self.disc else -odd
         lng = self.pArrayYB( bar, -odd, cp=False)
         t = -1 if not self.disc else 1
         return self.pArrayYBO(bar, t, cp=False)
 
+    def _rotateMoveHiddenMonoWires(self, w):
+        a = self.DETAIL_B/2
+        c = (0,0,0)
+        z = (0,0,1)
+        w = self.rotate(w, a, c, z, 1, cp=False)
+        if self.dome: return w
+        p1, p2 = self.oPOINTS[0][:2]
+        x = self.OR - (p1[0] - p2[0]) / 2
+        y = (p2[1] - p1[1]) / 2
+        return self.xMirror(w, x=x, y=y, cp=False)
+
     # BEGIN: Horison poly torsion to extrude mechanism
 
-    def _turnToExtrude(self, objs):
+    def _turnToExtrude(self, objs, **kwargs):
         o = list()
         rng = range(len(objs))
-        [ o.extend(self.__turn([objs[i]], i)) for i in rng ]
+        [ o.extend(self.__turn([objs[i]], i, **kwargs)) for i in rng ]
         return o
 
-    def _turnAfterExtrude(self, objs):
+    def _turnAfterExtrude(self, objs, **kwargs):
         o = list()
         rng = range(len(objs))
-        [ o.extend(self.__turn([objs[i]],i,backw=True)) for i in rng ]
+        [ o.extend(self.__turn([objs[i]],i,backw=True,**kwargs)) for i in rng ]
         return o
 
-    def __turn(self, obj, i, backw=False):
+    def __turn(self, obj, i, backw=False, **kwargs):
         """
         Torsion mechanism to give thickness of horison surfaces of Frame
           Root poly. Revolves around Z axis by angle B/2 and Y axis by
                    angle B*position in horisons sequence.
         """
-        return self.__after(obj, i) if backw else self.__to(obj, i)
+        return self.__after(obj,i,**kwargs) if backw else self.__to(obj,i,**kwargs)
 
-    def __to(self, obj, i):
-        angle, n, zero_y, a_y = self.__prms(i)
+    def __to(self, obj, i, **kwargs):
+        angle, n, zero_y, a_y, mono = self.__prms(i, **kwargs)
         obj = self.__turnToFromZero(obj, -angle/2)
-        return self.rotate(obj, angle*n, zero_y, a_y, 1, cp=False)
+        return self.rotate(obj, angle*n-mono, zero_y, a_y, 1, cp=False)
 
-    def __after(self, obj, i):
-        angle, n, zero_y, a_y = self.__prms(i)
-        obj = self.rotate(obj, -angle*n, zero_y, a_y, 1, cp=False)
+    def __after(self, obj, i, **kwargs):
+        angle, n, zero_y, a_y, mono = self.__prms(i, **kwargs)
+        obj = self.rotate(obj, -angle*n+mono, zero_y, a_y, 1, cp=False)
         return self.__turnToFromZero(obj, angle/2)
 
     def __prms(self, i):
         zero_y, a_y = self.__zeroYAxisToTurn()
         angle = self.DETAIL_B
         n = self.__numberToTurn(self.rows - i)
-        return angle, n, zero_y, a_y
+        mono = self.__monoPrms(angle)
+        return angle, n, zero_y, a_y, mono
+
+    def __monoPrms(self, angle):
+        if self.MTL.FRAME: return 0
+        mono = angle/2
+        if self.dometic and self.quatro and not self.less_rows:
+            mono -= angle
+        if self.coupler:
+            op = ( 1.0984 ** (self.DETAILS - 3) ) / (self.DETAILS/2)
+            mono += (self.DETAIL_A ** op) / (self.DETAILS - 3)
+        return mono
 
     def __turnToFromZero(self, obj, angle):
         zero_z, a_z = (0, 0, self.ZERO_Z), (0,0,1)
         return self.rotate(obj, angle, zero_z, a_z, 1, cp=False)
 
     def __numberToTurn(self, ny):
-        expr = self.rows is self.POLY_QUARTER
-        if self.dome and expr and self.quatro:
+        if self.dome and self.equal_rows and self.quatro:
             return ny-1
         elif self.thor and self.quatro:
-            return ny if not expr else ny-1
+            return ny if not self.equal_rows else ny-1
         return ny
 
     def __zeroYAxisToTurn(self):
@@ -1519,10 +1687,8 @@ class FrameBlocks(FrameMovement):
 
 class FrameWireFrame(FrameBlocks):
     _mtl_ = str('bar')
-    _btm_ = str('bottom') + _mtl_
-    _hpl_ = str('hPoly')  + _mtl_
-    _sht_ = str('short')  + _mtl_
-    _rof_ = str('long')   + _mtl_
+    _sht_ = str('short')
+    _rof_ = str('long')
 
     def _createFrameWireFrame(self, ny, MTL, **kwargs):
         self.insertionH1Units(self.h1, MTL.H)
@@ -1532,82 +1698,40 @@ class FrameWireFrame(FrameBlocks):
         for w in [0, ws]:
             self.oPOINTS.append( self.oPolyPoints(self.OR-w) )
             self._h1(w, self.h1, MTL.T, mtl)
-            self._verticalPoly(ny, mtl)
-            self.__bottom(w, MTL)
-            self._horizonPoly(ny, w, MTL.T)
+            self.__horisonLong(w, ny, MTL)
             self.__horisonShort(w, self.rows, MTL)
-            self.__horisonLong(w, ny, MTL, mtl)
+            self._verticalPoly(ny, mtl)
+            self._bottom(w, MTL, mtl)
+            self._horizonPoly(ny, w, mtl, MTL.T)
         self._marking(MTL)
         return self.get(Blocks._wfr_ + mtl)
 
-    def __bottom(self, w, MTL):
-        if not self.h1 or not self.cols: return list()
-        ws = self.rightHypothenuse(MTL.W) if w else 0
-        tp = __class__._btm_ + self.pointSystem
-        p = self.oPolyPoints(self.OR - ws)[:2]
-        wire = self.appendWfr(tp, self.wire(
-            [self._pntBtmMnr(x,y,MTL.H) for x,y in p],
-            vis=self.wfVisibility ))
-        return wire
-
-    def _horizonPoly(self, ny, w, MTH):
-        if not self.cols: return list()
-        tp = __class__._hpl_ + self.pointSystem
-        self.appendWfr(tp, [ ] )
-        hpll = len(self.getWfr(tp))-1
-        amount = self.__hPolyNumber(ny) if ny else 1
-        for i in range(amount, -1, -1):
-            points = self.oPOINTS[0][i]
-            angle = self.DETAIL_B*i
-            reduc = self.rightSideB_ByA(w or MTH, angle)
-            Or = points[0]-reduc if w else points[0]
-            drop = self.rightCathetusA_ByA(MTH, angle)
-            h1 = points[1] + self.ZERO_Z
-            h1 = h1 - drop if w else h1
-            points = self.oPolyPoints(Or)[:2]
-            wire = self.wire([
-                self._pntHPolyMnr(x,y,h1,MTH) for x,y in points
-                ], vis=self.wfVisibility)
-            self.extendDoubledWfr(tp, hpll, wire)
-        return self.getWfr(tp)
-
     def __horisonShort(self, w, rows, MTL):
         if not self.long or not rows and not self.h1: return list()
-        tp = __class__._sht_ + self.pointSystem
+        tp = __class__._sht_ + self.pointSystem + __class__._mtl_
         dim, amount = self.insertionLongUnits(self.long, MTL.H)
         w1 = 0 if not w else MTL.H
         points = self.extensionPoints(-dim, w1, MTL.W)
         wire = self.wire( [ *points ], vis=self.wfVisibility )
         return self.appendWfr(tp, wire)
 
-    def __horisonLong(self, w, rows, MTL, mtl):
+    def __horisonLong(self, w, rows, MTL):
         if self._checkInWfr(self.ZERO_Y): return list()
-        tp = __class__._rof_ + self.pointSystem
+        tp = __class__._rof_ + self.pointSystem + __class__._mtl_
         w1 = 0 if not w else MTL.H
         points = self.extensionPoints(self.ZERO_Y, w1, MTL.W)
         self.appendWfr(tp, self.wire(
             [*points], vis=self.wfVisibility))
         return self.getWfr(tp)
 
-    def __hPolyNumber(self, ny):
-        expr = self.rows is self.POLY_QUARTER and self.quatro
-        expr0 = self.dome and expr
-        expr1 = self.thor and expr
-        return ny-1 if expr0 or expr1 else ny
-
 class FrameModelLayer(FrameWireFrame):
-    def __polygonCutTool(self, height):
-        placement = (self.ZERO_X, 0, self.ZERO_Z)
-        p = self.polygon(self.DETAILS, self.OR+100, placement)
-        p = self._rotatePolygonToCut(p, placement)
-        return self.extrude(p, (0,1,0), height, vis=False)
 
     def _extrudeHPolys(self, n, MTW, hplwf):
         s = list()
         edges1, edges2 = self.getWfr(hplwf)
         edges1 = edges1[-n-1:]
         edges2 = edges2[-n-1:]
-        tool = self.__polygonCutTool(MTW)
+        tool = self._polygonCutTool(MTW)
         s = self.surface(edges1, edges2)
         s = self._turnToExtrude(s)
         e = self.extrude(s, (0,0,1), MTW)
@@ -1639,16 +1763,16 @@ class FrameModelLayer(FrameWireFrame):
 class FrameRoot(FrameModelLayer):
     """Creator of bar root objects"""
     _mtrl_ = FrameWireFrame._mtl_
-    _h1ba_ = WireFrame._h1_  + _mtrl_
+    _h1ba_ = WireFrame._h1_
     _vplb_ = WireFrame._vpl_ + _mtrl_
-    _botm_ = FrameWireFrame._btm_
+    _botm_ = WireFrame._btm_
     _hplb_ = FrameWireFrame._hpl_
     _lnge_ = FrameWireFrame._rof_
     _shte_ = FrameWireFrame._sht_
     _hdrp_ = str('h1drops')
 
     def __init__(self, tp, matW, matH, *args, **kwargs):
-        self.MTL = Materials(width=matW, height=matH)
+        self.MTL = Materials(width=matW, height=matH, RGB="#999900")
         super().__init__(tp, *args, **kwargs)
 
     def wireFrame(self, ny, nz, **kwargs):
@@ -1667,15 +1791,15 @@ class FrameRoot(FrameModelLayer):
     def __bottomHorizonBar(self):
         if not self.h1 or not self.cols: return
         tp = __class__._botm_
-        btmwf = self._getWfType(__class__._botm_)
-        WFh1 = WireFrame._h1_
+        btmwf = self._getWfType(tp, cls=__class__)
+        WFh1 = __class__._h1ba_
         h1wf  = self._getWfType(WFh1, cls=__class__)
         cornwf = WFh1 + Root._corn_ + __class__._mtrl_
         h1wf = cornwf if self.thor else h1wf
         s = self.surface(*self.getWfr(btmwf))
         e = self.extrude(s, (0, 0, 1), self.MTL.H, s=False)
         bb = self._cutBtmHorBar(e, self.MTL, h1wf)
-        self.extendRoot(tp, bb )
+        return self.extendRoot(tp, bb )
 
     def __h1WallBar(self):
         if not self.h1 or self.thor: return
@@ -1683,27 +1807,27 @@ class FrameRoot(FrameModelLayer):
         h1wfr = self._getWfType(WireFrame._h1_, cls=__class__)
         h1wfr = self.getWfr(h1wfr)
         h1 = self._extrudeVertical( h1wfr, self.MTL.W )
-        self.extendRoot(tp, h1)
+        return self.extendRoot(tp, h1)
 
     def __horizonPolyBars(self, n):
         if not self.cols: return
         tp = __class__._hplb_
-        hplwf = self._getWfType(__class__._hplb_)
+        hplwf = self._getWfType(tp, cls=__class__)
         bs = self._extrudeHPolys(n, self.MTL.W, hplwf)
         self._moveBottomToZero( [bs[-1]], self.MTL.W )
-        self.extendRoot(tp, bs)
+        return self.extendRoot(tp, bs)
 
     def __verticalPolyBar(self):
         tp = __class__._vplb_
         vplwf = self._getWfType(WireFrame._vpl_,  cls=__class__)
         if not len(self.getWfr(vplwf)): return self.extendRoot(tp, list())
         v = self._extrudeVertical( self.getWfr(vplwf), self.MTL.W )
-        self.extendRoot(tp, v)
+        return self.extendRoot(tp, v)
 
     def __longHorisonBar(self):
         if not self.ZERO_Y or self.thor: return list()
         tp = __class__._lnge_
-        rofwf = self._getWfType(__class__._lnge_)
+        rofwf = self._getWfType(tp, cls=__class__)
         s = self.surface(*self.getWfr(rofwf))
         b = self.extrude(s, (1,0,0), self.MTL.W)
         b = self._alignHorisonLongBar(b, self.MTL.W)
@@ -1712,15 +1836,16 @@ class FrameRoot(FrameModelLayer):
 
     def __shortHorisonBar(self):
         tp = __class__._shte_
-        shtwf = self._getWfType(__class__._shte_)
+        shtwf = self._getWfType(tp, cls=__class__)
         if not self.rows and not self.h1: return list()
         elif not len(self.getWfr(shtwf)): return list()
         s = self.surface(*self.getWfr(shtwf))
         b = self.extrude(s, (1,0,0), self.MTL.W)
         b = self._alignHorisonShortBar(b, self.MTL.W)
-        self.extendRoot(tp, b)
+        return self.extendRoot(tp, b)
 
 class FrameDome(FrameRoot):
+
     def __init__(self, *args, **kwargs):
         super().__init__(Root._dome_, *args, **kwargs)
 
@@ -1728,6 +1853,7 @@ class FrameDome(FrameRoot):
         self._build(**kwargs)
 
 class FrameCorner(FrameRoot):
+
     def __init__(self, *args, **kwargs):
         super().__init__(Root._corn_, *args, **kwargs)
 
@@ -1735,6 +1861,7 @@ class FrameCorner(FrameRoot):
         return self._build(**kwargs)
 
 class FrameDisc(FrameRoot):
+
     def __init__(self, *args, **kwargs):
         super().__init__(Root._disc_, *args, **kwargs)
 
@@ -1742,6 +1869,7 @@ class FrameDisc(FrameRoot):
         return self._build(**kwargs)
 
 class FrameThorus(FrameRoot):
+
     def __init__(self, *args, **kwargs):
         super().__init__(Root._corn_, *args, **kwargs)
 
@@ -1776,6 +1904,92 @@ class FrameThorus(FrameRoot):
         return self._build(**kwargs)
 
 # END: Frame root creation system
+
+# BEGIN: Cover root creation system
+
+class CoverBlocks(Root): pass
+
+class CoverWireFrame(CoverBlocks):
+    _mtl_ = str('cover')
+    _vcp_ = str('vCoverPoly') + _mtl_
+
+    def _createCoverWireFrame(self, ny, MTL, **kwargs):
+        mtl = __class__._mtl_
+
+
+class CoverRoot(CoverWireFrame):
+
+    def __init__(self, tp, thickn, *args, **kwargs):
+        assert thickn, "No Cover thickness defined"
+        self.MTL = Materials(thickn=thickn, **kwargs)
+        super().__init__(tp, *args, **kwargs)
+
+    def wireFrame(self, ny, nz, **kwargs):
+        super().wireFrame(ny, nz, **kwargs)
+        self._createCoverWireFrame(ny, self.MTL, **kwargs)
+
+    def _build(self, **kwargs): pass
+
+class CoverDome(CoverRoot):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(Root._dome_, *args, **kwargs)
+
+    def root(self, **kwargs):
+        self._build(**kwargs)
+
+class CoverCorner(CoverRoot):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(Root._corn_, *args, **kwargs)
+
+    def root(self, **kwargs):
+        return self._build(**kwargs)
+
+class CoverDisc(CoverRoot):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(Root._disc_, *args, **kwargs)
+
+    def root(self, **kwargs):
+        return self._build(**kwargs)
+
+class CoverThorus(CoverRoot):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(Root._corn_, *args, **kwargs)
+
+    def wireFrame(self, ny, nz, **kwargs):
+        Root.wireFrame(self, ny, nz)
+        self.__cornWireFrame(ny, **kwargs)
+        self.__thorWireFrame(ny, **kwargs)
+        return self.get(Blocks._wfr_)
+
+    def root(self, **kwargs):
+        self.__cornRoot(**kwargs)
+        self.__thorRoot(**kwargs)
+        return self.get(Blocks._roo_)
+
+    def __wireFrame(self, ny, **kwargs):
+        return self._createCoverWireFrame(ny, self.MTL, **kwargs)
+
+    def __cornWireFrame(self, ny, **kwargs):
+        self.pointSystem = Root._corn_
+        return self.__wireFrame(ny, **kwargs)
+
+    def __thorWireFrame(self, ny, **kwargs):
+        self.pointSystem = Root._thor_
+        return self.__wireFrame(ny, **kwargs)
+
+    def __cornRoot(self, **kwargs):
+        self.pointSystem = Root._corn_
+        return self._build(**kwargs)
+
+    def __thorRoot(self, **kwargs):
+        self.pointSystem = Root._thor_
+        return self._build(**kwargs)
+
+# END: Cover root creation system
 
 # BEGIN: Extend and compound super system
 
@@ -1930,9 +2144,9 @@ class Extend(object):
     def __revPolyY(self, obj, torev, tps, extm):
         "revolving mechanism of all polys around Y axis"
         assert len(torev), "Empty items list"
-        assert len(torev) is 1, "Too many items to revolve"
+        assert len(torev) == 1, "Too many items to revolve"
         if not self.rows: return list()
-        elif self.rows is 1:
+        elif self.rows == 1:
             [ extm(t, torev) for t in tps ]
             return torev
         n = (self.rows-1)*-1 if obj.disc else self.rows-1
@@ -2035,6 +2249,7 @@ class Compound(Extend):
 # BEGIN: Basic flexible Mono Root extends and compound
 
 class MonoExtend(Compound):
+
     def __init__(self, obj, **kwargs):
         super().__init__(MonoRoot, obj, **kwargs)
         if not self.h1 and not self.rows: return
@@ -2044,7 +2259,7 @@ class MonoExtend(Compound):
 
     def __completePartialPoly(self, obj):
         self._liftPolyH1s(obj)
-        lofts = obj.getLft(MonoRoot._poly_)
+        lofts = obj.getRoot(MonoRoot._hpl_)
         self._collectPartial(obj, lofts)
 
     def __completeExtension(self, obj):
@@ -2057,16 +2272,16 @@ class MonoExtend(Compound):
         self._vertExtArray(obj)
 
     def _liftPolyH1s(self, obj):
-        tolft = obj.getLft(MonoRoot._mph1_)
+        tolft = obj.getRoot(MonoRoot._btm_)
         return super()._liftPolyH1s(obj, tolft.copy())
 
     def _liftExtH1s(self, obj):
-        tolft = obj.getLft(MonoRoot._exth_)
+        tolft = obj.getRoot(MonoRoot._h1_)
         return super()._liftExtH1s(obj, tolft.copy())
 
     def _revHoriExtY(self, obj):
         expr = obj.rows and obj.long
-        pl = obj.getLft(MonoRoot._extp_).copy()
+        pl = obj.getRoot(MonoRoot._vpl_).copy()
         return super()._revHoriExtY(obj, pl) if len(pl) else list()
 
     def _moveExtHToThor(self, obj, tomove):
@@ -2079,6 +2294,7 @@ class MonoExtend(Compound):
         return super()._moveExtVToThor(obj, tomove, y=y)
 
 class MonoCompound(MonoExtend):
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._collectTotal(self.obj)
@@ -2169,7 +2385,7 @@ class FrameExtend(Compound):
 
     def __moveRoofToThor(self, obj, lng, extm):
         if not obj.thor: return
-        ok = self.rows is int(obj.DETAILS/4) and obj.quatro
+        ok = obj.equal_rows and obj.quatro
         tp = Extend._alle_
         if ok: return extm(tp, lng)
         moved = obj.xMirror(lng, y=obj.ZERO_Y/2)
@@ -2177,7 +2393,7 @@ class FrameExtend(Compound):
         extm(tp, tocol.copy())
 
     def __collectRoof(self, obj, lng, extm):
-        ok = self.rows is int(obj.DETAILS/4) and obj.quatro
+        ok = obj.equal_rows and obj.quatro
         tp = Extend._alle_
         if obj.thor and ok: return
         # elif obj.dome and ok or not self.rows: return extm(tp, lng)
@@ -2186,6 +2402,7 @@ class FrameExtend(Compound):
     # END: Extension expand system
 
 class FrameCompound(FrameExtend):
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._collectTotal(self.obj)
@@ -2261,7 +2478,7 @@ if main and CONFIG:
 
     t = time.time()
 
-    MTL = MONO or COVER or FRAME
+    MTL = MONO or FRAME
 
     args = convert(MTL, LONG, H1, OR, DETAILS, THORUS, COMPOUND, PRINT3D)
 
@@ -2298,7 +2515,7 @@ if main and CONFIG:
     t = time.time() - t
     m = int(t/60)
     s = t - m*60
-    obj.cprint('Built in: {0} minutes, {1:.1f} seconds'.format(m, s))
+    obj.cprint('Executed in: {0} minutes, {1:.1f} seconds'.format(m, s))
 
 elif main and not CONFIG and TEST:
     "Run testcases"
