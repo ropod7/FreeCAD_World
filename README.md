@@ -13,6 +13,6 @@ YouTube presentation:
 [![Macro Video](https://img.youtube.com/vi/GIyBWlv_GzM/0.jpg)](https://www.youtube.com/watch?v=GIyBWlv_GzM)
 
 ![dome_thorus](https://i.ibb.co/9qpVSw3/screenshot-2021-01-08-19-52-38.png)
-![dome_thorus_mono](https://i.ibb.co/1zMHqPQ/screenshot-2021-01-31-19-59-29.png)
+![dome_thorus_mono](https://i.ibb.co/nC1WBdj/screenshot-2023-06-28-18-46-35.png)
 
 ## dependencies: FreeCAD + python3 build
