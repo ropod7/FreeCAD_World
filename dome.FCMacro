@@ -26,19 +26,19 @@ __Files__ = 'https://github.com/ropod7/FreeCAD_World/blob/master/dome.FCMacro'
 ###############################################################################
 
 # Root object params (mm):
-DETAILS  = int(18)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
+DETAILS  = int(16)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
 OR     = float(1200) # Outscribed R of polygon (or inscribed polygon) & carriage on X axis
 H1     = float(1200) # Height of 1st 'floor' & carriage on Z (or 0)
 LONG   = float(1200) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
-    CORNER = bool(True), # Inner side of thorus. Outside R of dome becomes inside R
-    DISC   = bool(True)  # Outer side of thorus. OR = OR*3
+    CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
+    DISC   = bool(False)  # Outer side of thorus. OR = OR*3
 ) # template of SpreadSheet system of object:
-ROWS    = int(DETAILS/4-3) # Number of rows revolving around Y axis (min: 0; max: DETAILS/4)
-COLS    = int(DETAILS)   # Number of cols revolving around Z axis (min: 0; max: DETAILS)
+ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis (min: 0; max: DETAILS/4)
+COLS    = int(DETAILS/2-4)   # Number of cols revolving around Z axis (min: 0; max: DETAILS)
 
 # Materials (mm):
-MONO   = float(200)        # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not FRAME
+MONO   = float(0)        # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not FRAME
 FRAME = tuple((50, 200)) # (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
 
 # Construction (under construction :):
@@ -76,7 +76,7 @@ ROOT       = bool(True)    # To show just wireframe if reproduced
 SOLID      = bool(True)    # Experimental attempt to speedup compound presentation in case of [False]
 # PRODUCTION = bool(False) # Produce Root for production (in case of STL or DXF needs)
 PRINT3D   = tuple((0, 0))  # Scale object to 3D printer bed. if > 0 and COMPOUND: do
-CLEANUP    = bool(True)    # Clean up document before build
+CLEANUP    = bool(False)    # Clean up document before build
 CONFIG     = bool(True)    # Switch off CONFIG to extend macros by python3 code
 # TEST       = bool(True)  # Run material tests in new doc, based on Root object params
 
@@ -868,6 +868,79 @@ class ObjectMovement(Movement):
     def dirY(self):
         return 1 if self.elongated else -1
 
+class ModelMovement(ObjectMovement):
+
+    # BEGIN: Horison poly torsion to extrude mechanism
+
+    def _turnToExtrude(self, objs, **kwargs):
+        o = list()
+        rng = range(len(objs))
+        [ o.extend(self.__turn([objs[i]], i, **kwargs)) for i in rng ]
+        return o
+
+    def _turnAfterExtrude(self, objs, **kwargs):
+        o = list()
+        rng = range(len(objs))
+        [ o.extend(self.__turn([objs[i]],i,backw=True,**kwargs)) for i in rng ]
+        return o
+
+    def __turn(self, obj, i, backw=False, **kwargs):
+        """
+        Torsion mechanism to give thickness of horison surfaces of Frame
+          Root poly. Revolves around Z axis by angle B/2 and Y axis by
+                   angle B*position in horisons sequence.
+        """
+        return self.__after(obj,i,**kwargs) if backw else self.__to(obj,i,**kwargs)
+
+    def __to(self, obj, i, **kwargs):
+        angle, n, zero_y, a_y, mono = self.__prms(i, **kwargs)
+        obj = self.__turnToFromZero(obj, -angle/2)
+        return self.rotate(obj, angle*n-mono, zero_y, a_y, 1, cp=False)
+
+    def __after(self, obj, i, **kwargs):
+        angle, n, zero_y, a_y, mono = self.__prms(i, **kwargs)
+        obj = self.rotate(obj, -angle*n+mono, zero_y, a_y, 1, cp=False)
+        return self.__turnToFromZero(obj, angle/2)
+
+    def __prms(self, i):
+        zero_y, a_y = self.__zeroYAxisToTurn()
+        angle = self.DETAIL_B
+        n = self.__numberToTurn(self.rows - i)
+        mono = self.__monoPrms(angle)
+        return angle, n, zero_y, a_y, mono
+
+    def __monoPrms(self, angle):
+        if self.MTL.FRAME: return 0
+        mono = angle/2
+        if self.dometic and self.quatro and not self.less_rows:
+            mono -= angle
+        if self.coupler:
+            op = ( 1.0984 ** (self.DETAILS - 3) ) / (self.DETAILS/2)
+            mono += (self.DETAIL_A ** op) / (self.DETAILS - 3)
+        return mono
+
+    def __turnToFromZero(self, obj, angle):
+        zero_z, a_z = (0, 0, self.ZERO_Z), (0,0,1)
+        return self.rotate(obj, angle, zero_z, a_z, 1, cp=False)
+
+    def __numberToTurn(self, ny):
+        if self.dome and self.equal_rows and self.quatro:
+            return ny-1
+        elif self.thor and self.quatro:
+            return ny if not self.equal_rows else ny-1
+        return ny
+
+    def __zeroYAxisToTurn(self):
+        x, z = self.ZERO_X, self.ZERO_Z
+        if self.dome:   return (0,0,z), (0, 1,0)
+        elif self.corn: return (x,0,z), (0,-1,0)
+        return (x,0,z), (0,1,0)
+
+    # END: Horison poly torsion to extrude mechanism
+
+    def _rotatePolygonToCut(self, obj, placement):
+        return self.rotate(obj, 90, placement, (1, 0, 0), 1, cp=False)
+
 class Blocks(MutableMapping, RightPoints):
     """
 
@@ -1069,7 +1142,7 @@ class Materials(list, ProductionCalc):
     def RGB(self):
         return self.__RGB
 
-class WireFrame(ObjectMovement, Blocks):
+class WireFrame(ModelMovement, Blocks):
     _btm_ = str('bottom')
     _hpl_ = str('hPoly')
     _h1_  = str('h1')
@@ -1162,7 +1235,16 @@ class WireFrame(ObjectMovement, Blocks):
         self.__vis = vis
         return vis
 
-class Root(WireFrame):
+class ModelLayer(WireFrame):
+
+    def _polygonCutTool(self, height, direction=(0,1,0), **kwargs):
+        placement = (self.ZERO_X, 0, self.ZERO_Z)
+        p = self.polygon(self.DETAILS, self.OR+height*2, placement)
+        p = self._rotatePolygonToCut(p, placement)
+        h = height if self.MTL.FRAME else height * 2
+        return self.extrude(p, direction, h, vis=False, **kwargs)
+
+class Root(ModelLayer):
     _dome_ = ThorusPoints._roots_[0]
     _corn_ = ThorusPoints._roots_[1]
     _disc_ = ThorusPoints._roots_[2]
@@ -1210,20 +1292,22 @@ class Root(WireFrame):
     def cols(self, number):
         self.__cols = number
 
-class ModelLayer(Root):
-
-    def _polygonCutTool(self, height, direction=(0,1,0), **kwargs):
-        placement = (self.ZERO_X, 0, self.ZERO_Z)
-        p = self.polygon(self.DETAILS, self.OR+height*2, placement)
-        p = self._rotatePolygonToCut(p, placement)
-        h = height if self.MTL.FRAME else height * 2
-        return self.extrude(p, direction, h, vis=False, **kwargs)
-
 # END: Object creation system
 
 # BEGIN: Mono root creation system
 
-class MonoMovement(ModelLayer):
+class MonoMovement(Root):
+
+    def _rotateMoveHiddenMonoWires(self, w):
+        a = self.DETAIL_B/2
+        c = (0,0,0)
+        z = (0,0,1)
+        w = self.rotate(w, a, c, z, 1, cp=False)
+        if self.dome: return w
+        p1, p2 = self.oPOINTS[0][:2]
+        x = self.OR - (p1[0] - p2[0]) / 2
+        y = (p2[1] - p1[1]) / 2
+        return self.xMirror(w, x=x, y=y, cp=False)
 
     def _horisonToolsRotation(self, t, bw=False):
         angle = self.DETAIL_B/2 if bw else -self.DETAIL_B/2
@@ -1261,7 +1345,7 @@ class MonoBlocks(MonoMovement):
     def getTool(self, name):
         return self._getRoot(__class__._tool_, name)
 
-class MonoWireFrame(FrameWireFrame, MonoBlocks):
+class MonoWireFrame(MonoBlocks):
     _mtl_ = str('mono')
 
     def _createMonoWireFrame(self, ny, MTL, **kwargs):
@@ -1537,7 +1621,7 @@ class MonoThorus(MonoRoot):
 
 # BEGIN: Frame root creation system
 
-class FrameMovement(ModelLayer):
+class FrameMovement(Root):
 
     def rotateAndDrop(self, obj, MTL, **kwargs):
         "Bottom extension bar creation in case of H1 > 0"
@@ -1577,9 +1661,6 @@ class FrameMovement(ModelLayer):
         elif self.thor: x = x-MTL.H/2
         return self.move(tool, x,0,0, 1, cp=False)
 
-    def _rotatePolygonToCut(self, obj, placement):
-        return self.rotate(obj, 90, placement, (1, 0, 0), 1, cp=False)
-
     def _alignHorisonShortBar(self, bar, MTW):
         r = self.rows
         t = self.POLY_QUARTER if self.less_rows else r
@@ -1595,85 +1676,6 @@ class FrameMovement(ModelLayer):
         lng = self.pArrayYB( bar, -odd, cp=False)
         t = -1 if not self.disc else 1
         return self.pArrayYBO(bar, t, cp=False)
-
-    def _rotateMoveHiddenMonoWires(self, w):
-        a = self.DETAIL_B/2
-        c = (0,0,0)
-        z = (0,0,1)
-        w = self.rotate(w, a, c, z, 1, cp=False)
-        if self.dome: return w
-        p1, p2 = self.oPOINTS[0][:2]
-        x = self.OR - (p1[0] - p2[0]) / 2
-        y = (p2[1] - p1[1]) / 2
-        return self.xMirror(w, x=x, y=y, cp=False)
-
-    # BEGIN: Horison poly torsion to extrude mechanism
-
-    def _turnToExtrude(self, objs, **kwargs):
-        o = list()
-        rng = range(len(objs))
-        [ o.extend(self.__turn([objs[i]], i, **kwargs)) for i in rng ]
-        return o
-
-    def _turnAfterExtrude(self, objs, **kwargs):
-        o = list()
-        rng = range(len(objs))
-        [ o.extend(self.__turn([objs[i]],i,backw=True,**kwargs)) for i in rng ]
-        return o
-
-    def __turn(self, obj, i, backw=False, **kwargs):
-        """
-        Torsion mechanism to give thickness of horison surfaces of Frame
-          Root poly. Revolves around Z axis by angle B/2 and Y axis by
-                   angle B*position in horisons sequence.
-        """
-        return self.__after(obj,i,**kwargs) if backw else self.__to(obj,i,**kwargs)
-
-    def __to(self, obj, i, **kwargs):
-        angle, n, zero_y, a_y, mono = self.__prms(i, **kwargs)
-        obj = self.__turnToFromZero(obj, -angle/2)
-        return self.rotate(obj, angle*n-mono, zero_y, a_y, 1, cp=False)
-
-    def __after(self, obj, i, **kwargs):
-        angle, n, zero_y, a_y, mono = self.__prms(i, **kwargs)
-        obj = self.rotate(obj, -angle*n+mono, zero_y, a_y, 1, cp=False)
-        return self.__turnToFromZero(obj, angle/2)
-
-    def __prms(self, i):
-        zero_y, a_y = self.__zeroYAxisToTurn()
-        angle = self.DETAIL_B
-        n = self.__numberToTurn(self.rows - i)
-        mono = self.__monoPrms(angle)
-        return angle, n, zero_y, a_y, mono
-
-    def __monoPrms(self, angle):
-        if self.MTL.FRAME: return 0
-        mono = angle/2
-        if self.dometic and self.quatro and not self.less_rows:
-            mono -= angle
-        if self.coupler:
-            op = ( 1.0984 ** (self.DETAILS - 3) ) / (self.DETAILS/2)
-            mono += (self.DETAIL_A ** op) / (self.DETAILS - 3)
-        return mono
-
-    def __turnToFromZero(self, obj, angle):
-        zero_z, a_z = (0, 0, self.ZERO_Z), (0,0,1)
-        return self.rotate(obj, angle, zero_z, a_z, 1, cp=False)
-
-    def __numberToTurn(self, ny):
-        if self.dome and self.equal_rows and self.quatro:
-            return ny-1
-        elif self.thor and self.quatro:
-            return ny if not self.equal_rows else ny-1
-        return ny
-
-    def __zeroYAxisToTurn(self):
-        x, z = self.ZERO_X, self.ZERO_Z
-        if self.dome:   return (0,0,z), (0, 1,0)
-        elif self.corn: return (x,0,z), (0,-1,0)
-        return (x,0,z), (0,1,0)
-
-    # END: Horison poly torsion to extrude mechanism
 
 class FrameBlocks(FrameMovement):
     """Frame Root blocks management system"""
