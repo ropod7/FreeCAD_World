@@ -22,7 +22,7 @@ class Trigon(object):
     def __init__(self, r, d):
         "Receives OR and DETAILS definitions"
         assert isinstance(r, float), "TypeError: r (OR) must be float"
-        self.__OR = r
+        self.__OR_ = r
         self.__DETAILS = d
 
     # Semantics of Trigonometry from: https://tinyurl.com/yyrxfd84
@@ -75,7 +75,13 @@ class Trigon(object):
 
     @property
     def OR(self):
-        return self.__OR
+        return self.__OR_
+
+    @OR.setter
+    def OR(self, Or):
+        assert isinstance(Or, float), "TypeError: Or (type) is float"
+        self.__OR_ = Or
+        return self.__OR_
 
     @property
     def DETAILS(self):
@@ -176,15 +182,24 @@ class ThorusPoints(TwoPoints):
         super().__init__(r, *args, **kwargs)
         self.pointSystem = tp
         x = r*2 if self.elongated else 0
-        self.ZERO_X =  x        # To measure corners on X carriage
+        self.ZERO_X = x        # To measure corners on X carriage
 
-    def __fixedXYRoots(self, x, y):
+    def __fixedXYRoots(self, x, y, MTL):
         """
         First couple of root X and Y points in case of Y > 0,
         to find complete proportions of toroidal trigonometry.
         """
         root_x = self.oPOINTS[0][1][0]
         root_y = self.oPOINTS[0][1][1]
+        if self.X_ORreduced:                                             # reduced after object __init__
+            angle = self.DETAIL_A - self.DETAIL_B/2
+            r = self.X_OR + self.X_ORreduced
+            try:
+                root_x = self.rightCathetusA_ByA(r,   angle)
+                root_y = self.rightSideB_ByAA(root_x, angle)
+            except ZeroDivisionError:                                    # in case of DETAILS == 4
+                root_x = 0
+                root_y = self.X_OR + self.X_ORreduced
         root_x = root_x if self.corn else root_x*2 - (root_x - x)
         root_y = root_y if self.corn else root_y*2 - (root_y - y)
         return root_x, root_y
@@ -197,40 +212,44 @@ class ThorusPoints(TwoPoints):
         if self.dome:
             return (x + self.__addititionalMove(MTL), y, 0)
         x = self.__cornerXPoint(x, y, MTL)
-        y = self.__cornerYPoint(x, y, 0)
+        y = self.__cornerYPoint(x, y, 0, MTL)
         return (x, y, 0)
 
     def _h1Points(self, w, MTL):
-        r = self.OR
-        if self.dome: return r if not w else r-MTL.T
-        elif self.disc: return r*3 if not w else r*3-MTL.T
-        return r if not w else r+MTL.T
+        disc_r = self.OR*3-self.X_ORreduced*2
+        if self.dome: return self.OR if not w else self.OR-MTL.T
+        elif self.disc: return disc_r if not w else disc_r-MTL.T
+        return self.X_OR if not w else self.X_OR+MTL.T
 
     def _pntHPolyMnr(self, x, y, z, MTL):
         if self.dome:
             return (x + self.__addititionalMove(MTL), y, z)
         x = self.__cornerXPoint(x, y, MTL)
-        y = self.__cornerYPoint(x, y, z)
-        x += self.__cornerMonoXMove(y, MTL)
-        y += self.__cornerMonoYMove(y, MTL)
+        y = self.__cornerYPoint(x, y, z, MTL)
+        x += self.__cornerMonoXExtend(y, MTL)
+        y += self.__cornerMonoYExtend(y, MTL)
         return (x, y, z)
 
     def _pntVPolyMnr(self, x, z):
         if self.dome: return (x, 0, z+self.ZERO_Z)
-        elif self.disc: return (x+self.OR*2, 0, z+self.ZERO_Z)
-        return (x+(self.OR - x)*2, 0, z+self.ZERO_Z)
+        r = self.X_OR + self.X_ORreduced
+        if self.disc: x, y, z = (x+r*2, 0, z+self.ZERO_Z)
+        else: x, y, z = (x+(r - x)*2, 0, z+self.ZERO_Z)
+        return (x, y, z)
 
     def __cornerXPoint(self, x, y, MTL):
+        r = self.X_OR + self.X_ORreduced
         if not y:
             zero_y_x = self.__fixedZeroYXRoot(x)
-            x += (self.OR - x)*2 + zero_y_x
+            x += (r - x)*2 + zero_y_x
             return x + self.__addititionalMove(MTL)
-        root_x, q = self.__fixedXYRoots(x, y)
+        root_x, _ = self.__fixedXYRoots(x, y, MTL)
         return x + (root_x - x)*2 + self.__addititionalMove(MTL)
 
-    def __cornerYPoint(self, x, y, z):
-        root_x, root_y = self.__fixedXYRoots(x, y)
-        if not y and z == self.ZERO_Z+self.OR-z and z != self.OR:
+    def __cornerYPoint(self, x, y, z, MTL):
+        r = self.X_OR + self.X_ORreduced
+        _, root_y = self.__fixedXYRoots(x, y, MTL)
+        if not y and z == self.ZERO_Z+r-z and z != r:
             return root_y * 2
         elif not y:
             return 0
@@ -243,13 +262,13 @@ class ThorusPoints(TwoPoints):
             return cmove if self.corn else dmove
         return 0
 
-    def __cornerMonoXMove(self, y, MTL):
+    def __cornerMonoXExtend(self, y, MTL):
         if MTL.MONO and self.corn:
             x = self.rightSideB_ByAA(MTL.T, self.DETAIL_A)
             return x if not y else -x
         return 0
 
-    def __cornerMonoYMove(self, y, MTL):
+    def __cornerMonoYExtend(self, y, MTL):
         if MTL.MONO and self.corn:
             return MTL.T if y else -MTL.T
         return 0
@@ -289,6 +308,38 @@ class ThorusPoints(TwoPoints):
     def dometic(self):
         return True if self.dome or self.thor else False
 
+    @property
+    def X_OR(self):
+        try: return self.__X_OR_
+        except AttributeError:
+            self.__X_OR_ = self.OR
+        return self.__X_OR_
+
+    @X_OR.setter
+    def X_OR(self, reduc):
+        assert isinstance(reduc, float),        "TypeError: reductor must be float"
+        try: assert self.__X_OR_ != self.OR,    "OR already produced"
+        except AttributeError: pass
+        self.__X_OR_ = reduc
+        return self.__X_OR_
+
+    @property
+    def X_ORreduced(self):
+        try: return self.__X_ORreduced_
+        except AttributeError:
+            self.__X_ORreduced_ = 0
+        return self.__X_ORreduced_
+
+    @X_ORreduced.setter
+    def X_ORreduced(self, reduc):
+        assert isinstance(reduc, float),      "TypeError: reductor must be float"
+        try: assert self.__X_ORreduced_ == 0, "OR already produced"
+        except AttributeError: pass
+        self.__X_ORreduced_ = reduc
+        self.__X_OR_ = self.OR - reduc
+        self.OR      = self.OR + reduc
+        return self.__X_ORreduced_
+
 class ExtensionPoints(ThorusPoints):
     _root_ = str('long')
 
@@ -321,9 +372,9 @@ class ExtensionPoints(ThorusPoints):
     def __insertionUnits(self, size, MTT):
         "Returns dimension and amount of internal orthogonal objects"
         if not size: return 0, 0
-        reduc = self.OR/10
-        MTT = reduc if MTT > reduc else MTT
-        amount = int(size / self.isoscelesBase(self.OR - MTT)) or 1
+        r = self.X_OR + self.X_ORreduced
+        reduc = r/self.DETAILS
+        amount = int(size / self.isoscelesBase(r - reduc)) or 1
         return size / amount, amount
 
     @property
@@ -513,12 +564,20 @@ class BaseTools(FreeCADObject):
 
     def Cut(self, base, tool, bvis=False):
         c = self.AddObject('Part::Cut', 'Cut')
+        self._setShapeColor(tool)
         c.Base = self.FCObject(base)
         c.Tool = self.FCObject(tool)
         self._setShapeColor(c)
         self._setVisibility(base, bvis)
         self._setVisibility(tool, False)
         return c
+
+    def Fusion(self, shapes, vis=True):
+        f = self.AddObject('Part::MultiFuse', 'Fusion')
+        f.Shapes = [ self.FCObject(o)   for o in shapes ]
+        [ self._setVisibility(o, False) for o in shapes ]
+        self._setShapeColor(f)
+        return self._setVisibility(f, vis)
 
     def Extrude(self, surface, direction, height, s=True, vis=True, d="Custom"):
         e = self.AddObject('Part::Extrusion', 'Extrude')
@@ -603,6 +662,12 @@ class Model(BaseTools):
         [ r.extend(self.__cut(base, tool, **kwargs)) for base in bases ]
         self.recompute()
         return r
+
+    def fusion(self, shapes, **kwargs):
+        assert isinstance(shapes, list) and len(shapes) > 1, "min list length of shapes is 2"
+        f = [ self.Fusion(shapes, **kwargs) ]
+        self.recompute()
+        return f
 
     def surface(self, e1, e2, **kwargs):
         assert len(e1) and len(e1) == len(e2), "empty edges list or lists not equal"
@@ -704,11 +769,21 @@ class ObjectMovement(Movement):
 
     def h1DropArray(self, obj, **kwargs):
         dim, amount = self.insH1L, self.insH1N
-        return self.move(obj, 0,0,-dim, amount-1, **kwargs)
+        if amount > 1:
+            return self.move(obj, 0,0,-dim, amount-1, **kwargs)
+        return obj
+
+    def h1Drop(self, obj, dim, cp=False, **kwargs):
+        return self.move(obj, 0,0,-dim, 1, cp=cp, **kwargs)
 
     def h1LiftArray(self, obj, **kwargs):
         dim, amount = self.insH1L, self.insH1N
-        return self.move(obj, 0,0,dim, amount-1, **kwargs)
+        if amount > 1:
+            return self.move(obj, 0,0,dim, amount-1, **kwargs)
+        return obj
+
+    def h1Lift(self, obj, dim, cp=False, **kwargs):
+        return self.move(obj, 0,0,dim, 1, cp=cp, **kwargs)
 
     def vLongArray(self, obj, **kwargs):
         dim = self.insLongL
@@ -818,6 +893,14 @@ class ModelMovement(ObjectMovement):
 
     def _rotatePolygonToCut(self, obj, placement):
         return self.rotate(obj, 90, placement, (1, 0, 0), 1, cp=False)
+
+    def _moveBtmHorBarTool(self, tool, MTL, mono=False):
+        x = self.ZERO_X
+        if self.dome:   x =   MTL.W   if not mono else 0
+        elif self.corn: x =  -MTL.W   if not mono else 0
+        elif self.disc: x =   MTL.W   if not mono else 0
+        elif self.thor: x = x-MTL.H/2 if not mono else x-MTL.H
+        return self.move(tool, x,0,0, 1, cp=False)
 
 class Blocks(MutableMapping, RightPoints):
     """
@@ -987,8 +1070,8 @@ class Materials(list, ProductionCalc):
 
     def __init__(self, obj, width=0, height=0, thickn=0, RGB=None, **kwargs):
         assert width and height or thickn, "Undefined material dimensions"
-        assert isinstance(RGB, tuple), "TypeError: color not tuple"
-        assert len(RGB) == 3,         "TypeError: wrong RGB format"
+        assert isinstance(RGB, tuple),     "TypeError: color not tuple"
+        assert len(RGB) == 3,              "TypeError: wrong RGB format"
         self.__frame = (width, height or thickn)
         obj.RGB = RGB
         return super().__init__(self.__frame)
@@ -1025,8 +1108,8 @@ class WireFrame(ModelMovement, Blocks):
 
     def _marking(self, MTL):
         if self.thor: return
-        zl = [0, self.ZERO_Z or MTL.W]
-        points = [(0, 0, z) for z in zl]
+        zl = [ 0, self.ZERO_Z or MTL.W or MTL.T ]
+        points = [ (0, 0, z) for z in zl ]
         wire1 = self.wire(points, vis=True) if set(zl) != {0} else list()
         wire2 = self.wire([(0, 0, 0), (0, -MTL.H or -MTL.T, 0)], vis=True)
         wires = self._markingArray(wire1, wire2)
@@ -1056,7 +1139,7 @@ class WireFrame(ModelMovement, Blocks):
         if not self.cols: return list()
         tp = __class__._hpl_ + self.pointSystem + mtl
         if MTL.FRAME:
-            self.appendWfr(tp, [ ] )
+            self.appendWfr( tp, [ ] )
         hpll = len(self.getWfr(tp))-1
         amount = self.__hPolyNumber(ny) if ny else 1
         for i in range(amount, -1, -1):
@@ -1111,6 +1194,10 @@ class WireFrame(ModelMovement, Blocks):
 
 class ModelLayer(WireFrame):
 
+    def copy(self, o):
+        assert isinstance(o, list) and len(o), "TypeError: not a list object or zero lenght"
+        return self.rotate(o, 0, (0,0,0), (0,0,0), 1, cp=True) # just copy
+
     def _polygonCutTool(self, height, direction=(0,1,0), **kwargs):
         placement = (self.ZERO_X, 0, self.ZERO_Z)
         sides = 20 if self.DETAILS < 20 else self.DETAILS
@@ -1119,13 +1206,20 @@ class ModelLayer(WireFrame):
         h = height if self.MTL.FRAME else height * 2
         return self.extrude(p, direction, h, vis=False, **kwargs)
 
-class Root(ModelLayer):
-    _dome_ = ThorusPoints._roots_[0]
-    _corn_ = ThorusPoints._roots_[1]
-    _disc_ = ThorusPoints._roots_[2]
-    _thor_ = ThorusPoints._roots_[3]
+    def _cutHPolysByTool(self, e, tool):
+        s1 = self.cut(e, tool)
+        s1 = self.pArrayZB(s1, -1, cp=False)
+        s = self.cut(s1, tool)
+        return self.pArrayZB(s, 1, cp=False)
 
-    def wireFrame(self, ny, nz, vis=False):
+class ModelRoot(ModelLayer):
+
+    def _setMaterial(self, width=None, height=None, thickn=None, RGB=None, **kwargs):
+        self.MTL = Materials(
+            self, width=width, height=height, thickn=thickn, RGB=RGB, **kwargs
+        )
+
+    def wireFrame(self, ny, nz, vis=False, **kwargs):
         assert ny <= self.DETAILS/4, "NumberError: ny (ROWS) not in range"
         assert nz <= self.DETAILS,   "NumberError: nz (COLS) not in range"
         self.__rows = ny   # number rows
@@ -1167,11 +1261,23 @@ class Root(ModelLayer):
     def cols(self, number):
         self.__cols = number
 
+class Root(object):
+    _dome_ = ThorusPoints._roots_[0]
+    _corn_ = ThorusPoints._roots_[1]
+    _disc_ = ThorusPoints._roots_[2]
+    _thor_ = ThorusPoints._roots_[3]
+
+    def __new__(cls, clss, *args, **kwargs):
+        obj = clss.__new__(clss, *args, **kwargs)
+        if isinstance(obj, clss):
+            clss.__init__(obj, *args, **kwargs)
+        return obj
+
 # END: Object creation system
 
 # BEGIN: Mono root creation system
 
-class MonoMovement(Root):
+class MonoMovement(ModelRoot):
 
     def _rotateMoveHiddenMonoWires(self, w):
         a = self.DETAIL_B/2
@@ -1184,11 +1290,11 @@ class MonoMovement(Root):
         y = (p2[1] - p1[1]) / 2
         return self.xMirror(w, x=x, y=y, cp=False)
 
-    def _horisonToolsRotation(self, t, bw=False):
+    def _horisonToolsRotation(self, t, bw=False, cp=False):
         angle = self.DETAIL_B/2 if bw else -self.DETAIL_B/2
-        return self.rotate(t, angle, (0,0,0), (0,0,1), 1, cp=False)
+        return self.rotate(t, angle, (0,0,0), (0,0,1), 1, cp=cp)
 
-    def _verticalToolsRotation(self, t, n, mid=False, bw=False):
+    def _verticalToolsRotation(self, t, n, mid=False, bw=False, cp=False):
         B = -self.DETAIL_B if self.corn else self.DETAIL_B
         A = self.DETAIL_A
         n = n if mid else n-1
@@ -1196,7 +1302,7 @@ class MonoMovement(Root):
         x = x if self.dome else self.rightCathetusA_ByA(x, A)-self.MTL.T
         z = self.h1
         dir_y = -1 if bw else 1
-        return self.rotate(t, B*n, (x,0,z), (0,dir_y,0), 1, cp=False)
+        return self.rotate(t, B*n, (x,0,z), (0,dir_y,0), 1, cp=cp)
 
 class MonoBlocks(MonoMovement):
     _face_ = str('faces')
@@ -1223,13 +1329,13 @@ class MonoBlocks(MonoMovement):
 class MonoWireFrame(MonoBlocks):
     _mtl_ = str('mono')
 
-    def _createMonoWireFrame(self, ny, MTL, **kwargs):
-        mtl = __class__._mtl_
+    def _createMonoWireFrame(self, ny, MTL, mtl=None, **kwargs):
+        mtl = __class__._mtl_ if mtl is None else mtl
         self.oPOINTS.append( self.oPolyPoints(self.OR) )
         self.insertionLongUnits(self.long, 0)
         c1, c2 = 0, self.rightHypothenuse(MTL.T)
         c3 = self.rightHypothenuse(c2)
-        hd, _ = self.insertionH1Units(self.h1, MTL.T)
+        hd, _ = self.insertionH1Units(self.h1, 0)
         [ self._bottom(z, MTL, mtl) for z in [c1, c2] ]
         for c in [c1, c2]:
             if self.thor: continue
@@ -1299,7 +1405,7 @@ class MonoModelLayer(MonoWireFrame):
 
     def __cuttingPolygons(self):
         if self.thor: return
-        t = self.MTL.T
+        t = self.MTL.T * 4 if self.DETAILS > 8 else self.MTL.T * 8
         self.FrontPTool = self._polygonCutTool(t, s=False)
         self.RearPTool  = self._polygonCutTool(t, direction=(0,-1,0), s=False)
 
@@ -1347,7 +1453,8 @@ class MonoModelLayer(MonoWireFrame):
 
     def __toolsExtrude(self, f, btm=False):
         dir_z = -1 if btm else 1
-        return self.extrude(f, (0,0,dir_z), self.MTL.T, s=False)
+        t = self.MTL.T
+        return self.extrude(f, (0,0,dir_z), t, s=False)
 
     def _cutPolyPolys(self, e):
         tp = __class__._tool_ + self.pointSystem
@@ -1377,9 +1484,9 @@ class MonoRoot(MonoModelLayer):
     _vpl_  = WireFrame._vpl_
     _hpl_  = WireFrame._hpl_
 
-    def __init__(self, tp, thickn, *args, **kwargs):
+    def __init__(self, tp, thickn, *args, RGB=(0.4,0.2,0.1), **kwargs):
         assert thickn, "No Mono thickness defined"
-        self.MTL = Materials(self, thickn=thickn, RGB=(0.4,0.2,0.1), **kwargs)
+        self._setMaterial(thickn=thickn, RGB=RGB, **kwargs)
         super().__init__(tp, *args, **kwargs)
 
     def wireFrame(self, ny, nz, **kwargs):
@@ -1387,36 +1494,44 @@ class MonoRoot(MonoModelLayer):
         self._createMonoWireFrame(ny, self.MTL, **kwargs)
 
     def _build(self, **kwargs):
+        if not self.rows and not self.h1: return
         super()._build(**kwargs)
-        self.__buildPolyH1()
-        self.__buildExtH1()
-        self.__buildPolyPoly()
-        self.__buildExtPoly()
+        self._buildPolyH1()
+        self._buildExtH1()
+        self._buildPolyPoly()
+        self._buildExtPoly()
 
-    def __buildPolyH1(self):
+    def _buildPolyH1(self, cls=None, w=0):
         if not self.h1 or not self.cols: return
         tp = WireFrame._btm_
-        tpf = self._getWfType(tp, cls=__class__) # thor
+        cls = __class__ if cls is None else cls
+        tpf  = self._getWfType(tp, cls=cls) # thor
         ph1f = self._createPolyH1Face(tpf)
         f = self.getFcs(tpf)
         assert ph1f is f, "Lists of faces not equal"
-        block = self.extrude(f, (0,0,1), self.insH1L, s=False)
-        return self.extendRoot(tp, block)
+        block = self.extrude(f, (0,0,1), w or self.insH1L, s=False)
+        if cls == __class__:
+            return self.extendRoot(tp, block)
+        return block, tp
 
-    def __buildExtH1(self):
+    def _buildExtH1(self, cls=None, reduc=0):
         if not self.h1 or not self.long or self.thor: return
         tp = __class__._h1_
-        tpf = self._getWfType(tp, cls=__class__) # not thor
+        cls = __class__ if cls is None else cls
+        tpf  = self._getWfType(tp, cls=cls) # not thor
         h1f = self._createH1Face(tpf)
         f = self.getFcs(tpf)
         assert h1f is f, "Lists of faces not equal"
-        block = self.extrude(f, (0,-1,0), self.insLongL, s=False)
-        return self.extendRoot(tp, block)
+        block = self.extrude(f, (0,-1,0), self.insLongL-reduc, s=False)
+        if cls == __class__:
+            return self.extendRoot(tp, block)
+        return block, tp
 
-    def __buildPolyPoly(self):
+    def _buildPolyPoly(self, cls=None):
         if not self.rows or not self.cols: return
         tp = __class__._hpl_
-        tpf  = self._getWfType(tp, cls=__class__) # thor
+        cls = __class__ if cls is None else cls
+        tpf  = self._getWfType(tp, cls=cls) # thor
         hpf = self._createPolyFaces(tpf)
         f = self.getFcs(tpf)
         assert hpf is f, "Lists of faces not equal"
@@ -1427,15 +1542,18 @@ class MonoRoot(MonoModelLayer):
         blocks = self._cutPolyPolys(e)
         return self.extendRoot(tp, blocks)
 
-    def __buildExtPoly(self):
+    def _buildExtPoly(self, cls=None, reduc=0):
         if not self.long or self.thor or not self.rows: return
         tp = __class__._vpl_
-        tpf = self._getWfType(tp, cls=__class__) # not thor
+        cls = __class__ if cls is None else cls
+        tpf  = self._getWfType(tp, cls=cls) # not thor
         epf = self._createExtPolyFaces(tpf)
         f = self.getFcs(tpf)
         assert epf is f, "Lists of faces not equal"
-        block = self.extrude(f, (0,-1,0), self.insLongL, s=False)
-        return self.extendRoot(tp, block)
+        block = self.extrude(f, (0,-1,0), self.insLongL-reduc, s=False)
+        if cls == __class__:
+            return self.extendRoot(tp, block)
+        return block, tp
 
 class MonoDome(MonoRoot):
 
@@ -1467,7 +1585,7 @@ class MonoThorus(MonoRoot):
         super().__init__(Root._corn_, *args, **kwargs)
 
     def wireFrame(self, ny, nz, **kwargs):
-        Root.wireFrame(self, ny, nz)
+        ModelRoot.wireFrame(self, ny, nz)
         self.__cornWireFrame(ny, **kwargs)
         self.__thorWireFrame(ny, **kwargs)
         return self.get(Blocks._wfr_)
@@ -1496,17 +1614,24 @@ class MonoThorus(MonoRoot):
         self.pointSystem = Root._thor_
         return self._build(**kwargs)
 
-class Mono(MonoRoot):
-    def __init__(self, root=None, *args, **kwargs):
-        assert root is not None, "Type of Root of creature not defined"
-        assert root in ThorusPoints._roots_,   "Given type not in list"
-        return super().__init__(root, *args, **kwargs)
+class Mono(Root):
+    _roots_ = {
+        Root._dome_ : MonoDome,
+        Root._corn_ : MonoCorner,
+        Root._disc_ : MonoDisc,
+        Root._thor_ : MonoThorus
+    }
+
+    def __new__(cls, *args, root=None, **kwargs):
+        assert root in __class__._roots_.keys(), "TypeError: unknown type of building"
+        clss = __class__._roots_.get(root)
+        return super().__new__(cls, clss, *args, **kwargs)
 
 # END: Mono root creation system
 
 # BEGIN: Frame root creation system
 
-class FrameMovement(Root):
+class FrameMovement(ModelRoot):
 
     def rotateAndDrop(self, obj, MTL, **kwargs):
         "Bottom extension bar creation in case of H1 > 0"
@@ -1537,14 +1662,6 @@ class FrameMovement(Root):
     def _shortBack(self, ext, MTW):
         if self.h1: return ext
         return self._moveBottomToZero(ext, MTW)
-
-    def _moveBtmHorBarTool(self, tool, MTL):
-        x = self.ZERO_X
-        if self.dome: x = MTL.W
-        elif self.corn: x = -MTL.W
-        elif self.disc: x =  MTL.W
-        elif self.thor: x = x-MTL.H/2
-        return self.move(tool, x,0,0, 1, cp=False)
 
     def _alignHorisonShortBar(self, bar, MTW):
         r = self.rows
@@ -1618,12 +1735,12 @@ class FrameModelLayer(FrameWireFrame):
         edges1, edges2 = self.getWfr(hplwf)
         edges1 = edges1[-n-1:]
         edges2 = edges2[-n-1:]
-        tool = self._polygonCutTool(MTW)
+        tool = self.polygon_tool = self._polygonCutTool(MTW)
         s = self.surface(edges1, edges2)
         s = self._turnToExtrude(s)
         e = self.extrude(s, (0,0,1), MTW)
         extruded = self._turnAfterExtrude(e)
-        return self.__cutHPolys(extruded, tool)
+        return self._cutHPolysByTool(extruded, tool)
 
     def _extrudeVertical(self, edges, MTW):
         assert isinstance(edges, list) and len(edges), "empty or wrong edges list"
@@ -1637,15 +1754,8 @@ class FrameModelLayer(FrameWireFrame):
         tool = self.surface(*self.getWfr(h1wf)) # wires as made H1 bar of
         tool = self.extrude(tool, (0, 1, 0), MTL.W)
         tool = self._moveBtmHorBarTool(tool, MTL)
-        tool2 = self.pArrayZB(tool, 1)
-        prebar = self.cut( base,  tool )
-        return self.cut( prebar, tool2 )
-
-    def __cutHPolys(self, e, tool):
-        s1 = self.cut(e, tool)
-        s1 = self.pArrayZB(s1, -1, cp=False)
-        s = self.cut(s1, tool)
-        return self.pArrayZB(s, 1, cp=False)
+        b = self._cutHPolysByTool(base, tool)
+        return b
 
 class FrameRoot(FrameModelLayer):
     """Creator of bar root objects"""
@@ -1659,7 +1769,7 @@ class FrameRoot(FrameModelLayer):
     _hdrp_ = str('h1drops')
 
     def __init__(self, tp, matW, matH, *args, **kwargs):
-        self.MTL = Materials(self, width=matW, height=matH, RGB=(1.0,0.8,0.0))
+        self._setMaterial(width=matW, height=matH, RGB=(1.0,0.8,0.0), **kwargs)
         super().__init__(tp, *args, **kwargs)
 
     def wireFrame(self, ny, nz, **kwargs):
@@ -1761,7 +1871,7 @@ class FrameThorus(FrameRoot):
         super().__init__(Root._corn_, *args, **kwargs)
 
     def wireFrame(self, ny, nz, **kwargs):
-        Root.wireFrame(self, ny, nz)
+        ModelRoot.wireFrame(self, ny, nz)
         self.__cornWireFrame(ny, **kwargs)
         self.__thorWireFrame(ny, **kwargs)
         return self.get(Blocks._wfr_)
@@ -1790,11 +1900,18 @@ class FrameThorus(FrameRoot):
         self.pointSystem = Root._thor_
         return self._build(**kwargs)
 
-class Frame(FrameRoot):
-    def __init__(self, root=None, *args, **kwargs):
-        assert root is not None, "Type of Root of creature not defined"
-        assert root in ThorusPoints._roots_,   "Given type not in list"
-        return super().__init__(root, *args, **kwargs)
+class Frame(Root):
+    _roots_ = {
+        Root._dome_ : FrameDome,
+        Root._corn_ : FrameCorner,
+        Root._disc_ : FrameDisc,
+        Root._thor_ : FrameThorus
+    }
+
+    def __new__(cls, *args, root=None, **kwargs):
+        assert root in __class__._roots_.keys(), "TypeError: unknown type of building"
+        clss = __class__._roots_.get(root)
+        return super().__new__(cls, clss, *args, **kwargs)
 
 # END: Frame root creation system
 
@@ -1945,7 +2062,10 @@ class Extend(object):
         "array mechanism to fill up h1 by horisons"
         if not self.h1: return [ extm(t, []) for t in tps ]
         lift = obj.h1LiftArray(tolft)
-        [ extm(t, tolft + lift.copy()) for t in tps ]
+        if obj.insH1N > 1:
+            [ extm(t, tolft + lift.copy()) for t in tps ]
+        else:
+            [ extm(t, lift) for t in tps ]
         return lift
 
     def __revPolyY(self, obj, torev, tps, extm):
@@ -1992,19 +2112,19 @@ class Extend(object):
 
     @property
     def rows(self):
-        return self.__obj.rows
+        return self.obj.rows
 
     @property
     def cols(self):
-        return self.__obj.cols
+        return self.obj.cols
 
     @property
     def long(self):
-        return self.__obj.long
+        return self.obj.long
 
     @property
     def h1(self):
-        return self.__obj.h1
+        return self.obj.h1
 
 class Compound(Extend):
     """Extended array system"""
@@ -2015,12 +2135,12 @@ class Compound(Extend):
         cols = hd if obj.cols > hd and obj.long else obj.cols
         super().__init__(cls, obj, cols, *args, **kwargs)
 
-    def compound(self):
+    def compound(self, obj=None):
         """
         Trigonometry based compound extended object:
             moved by: -X carriage on Y: LONG/2
         """
-        obj  = self.obj
+        obj  = self.obj if obj is None else obj
         expr = not obj.long and obj.cols<obj.DETAILS-1
         if expr and obj.cols: return
         totl  = __class__._totl_
@@ -2037,8 +2157,8 @@ class Compound(Extend):
     def _collectTotal(self, obj):
         total = __class__._totl_
         allp = obj.getPlg(Extend._allp_)
-        alle = obj.getExt(Extend._alle_)
         obj.extend(total, allp.copy())
+        alle = obj.getExt(Extend._alle_)
         obj.extend(total, alle.copy())
         return obj.get(total)
 
@@ -2252,11 +2372,11 @@ def convert(MTL, lng, h1, Or, dets, thor, comp, p3d):
         mtl = [s(MTL, scale)]
     return (*mtl, *converted)
 
-def compoundModel(OBJ, obj, s, root, EXTEND, COMPOUND, ROTATE, MOVE):
-    if not OBJ is str(s): return list()
+def compoundModel(root, obj, s, OBJ, EXTEND, COMPOUND, ROTATE, MOVE):
+    if not root is str(s): return list()
     o = None
     if EXTEND:
-        o = root(obj)
+        o = OBJ(obj)
     if COMPOUND:
         o.compound()
     if ROTATE.get('DO'):                # at first rotate
@@ -2292,36 +2412,35 @@ if main and CONFIG:
     MTL = MONO or FRAME
 
     args = convert(MTL, LONG, H1, OR, DETAILS, THORUS, COMPOUND, PRINT3D)
+       # = (MONO or FRAME, LONG, H1, OR, DETAILS)
+
+    OBJ = Mono if MONO else Frame
 
     if       THORUS.get('CORNER') and not THORUS.get('DISC'):
-        OBJ = FrameCorner if not MONO else MonoCorner
-        obj = OBJ(*args, cleanup=CLEANUP)
-        OBJ = str('CORNER')
+        root = Root._corn_
+        obj = OBJ(*args, root=root, cleanup=CLEANUP)
 
     elif not THORUS.get('CORNER') and     THORUS.get('DISC'):
-        OBJ = FrameDisc if not MONO else MonoDisc
-        obj = OBJ(*args, cleanup=CLEANUP)
-        OBJ = str('DISC')
+        root = Root._disc_
+        obj = OBJ(*args, root=root, cleanup=CLEANUP)
 
     elif     THORUS.get('CORNER') and     THORUS.get('DISC'):
-        OBJ = FrameThorus if not MONO else MonoThorus
-        obj = OBJ(*args, cleanup=CLEANUP)
-        OBJ = str('THORUS')
+        root = Root._thor_
+        obj = OBJ(*args, root=root, cleanup=CLEANUP)
 
     else:
-        OBJ = FrameDome if not MONO else MonoDome
-        obj = OBJ(*args, cleanup=CLEANUP)
-        OBJ = str('DOME')
+        root = Root._dome_
+        obj = OBJ(*args, root=root, cleanup=CLEANUP)
 
-    COMP = FrameCompound if not MONO else MonoCompound
+    OBJ = FrameCompound if not MONO else MonoCompound
 
     obj.wireFrame(ROWS, COLS, vis=WIREFRAME)
     if not ROOT: exit(0)
 
     obj.root(solid=SOLID)
 
-    for o in ['DOME', 'CORNER', 'DISC', 'THORUS']:
-        compoundModel( OBJ, obj, o, COMP, EXTEND, COMPOUND, ROTATE, MOVE )
+    for o in [ Root._dome_, Root._corn_, Root._disc_, Root._thor_ ]:
+        compoundModel( root, obj, o, OBJ, EXTEND, COMPOUND, ROTATE, MOVE )
 
     t = time.time() - t
     m = int(t/60)
@@ -2332,5 +2451,3 @@ elif main and not CONFIG:
     "Start coding here disabling CONFIG and TEST"
     # As example created "heart system":
     pass
-
-
