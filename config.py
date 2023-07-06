@@ -4,9 +4,9 @@
 __Name__ = 'FreeCAD World'
 __Comment__ = 'Flexible parametric design of domical objects'
 __Author__ = 'ropod7'
-__Version__ = '0.2.0'
+__Version__ = '0.3.0'
 __Status__ = 'alpha'
-__Date__ = '30.06.2023'
+__Date__ = '06.07.2023'
 __License__ = 'GNU General Public License v3.0'
 __Web__ = 'https://github.com/ropod7/FreeCAD_World'
 __Wiki__ = 'https://github.com/ropod7/FreeCAD_World/tree/master/docs'
@@ -36,32 +36,33 @@ __Files__ = 'https://github.com/ropod7/FreeCAD_World'
 ###############################################################################
 
 # Root object params (mm):
-DETAILS  = int(18)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
-OR     = float(1000) # Outscribed R of polygon (or inscribed polygon) & carriage on X axis
-H1     = float(500) # Height of 1st 'floor' & carriage on Z (or 0)
-LONG   = float(1000) # Extension & carriage on Y axis (or 0)
+DETAILS  = int(4)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
+OR     = float(4300) # Outscribed R of polygon (or inscribed polygon) & carriage on X axis
+H1     = float(6210/2) # Height of 1st 'floor' & carriage on Z (or 0)
+LONG   = float(6210) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
     CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
     DISC   = bool(False)  # Outer side of thorus. OR = OR*3
 ) # template of SpreadSheet system of object:
 ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis (min: 0; max: DETAILS/4)
-COLS    = int(DETAILS)   # Number of cols revolving around Z axis (min: 0; max: DETAILS)
+COLS    = int(DETAILS/4)   # Number of cols revolving around Z axis (min: 0; max: DETAILS)
 
-# Materials (mm) [ (!!!) it works just with domeFCMacro.py module (!!!) ]:
-MONO   = float(0.5)        # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not FRAME
+# Materials (mm)    [ (!!!) it works just with domeFCMacro.py module (!!!) ]:
+MONO   = float(50)        # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not FRAME
 FRAME = tuple((50, 200)) # (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
 
 # Construction (mm) [ (!!!) it works just with houseFCMacro.py module (!!!) ]:
-HOUSE = dict(
-    FRAME    = tuple((50, 200)), # (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
-    INSULANT   = int(150), # Insulant thickness. (!!!) Must be lower than FRAME BAR height (!!!).
-    CONTOUR    = int(50),   # Ventilated contour (just space between layers of FRAME and COVER or 0).
-    COVER      = int(15)  # Sheet material thickness, or zero (0).
+HOUSE = dict( # THORUS still experimental:
+    FRAME    = tuple((50, 200)),# (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
+    INSULANT  = float(100),# Insulant thickness. (!!!) Must be lower than FRAME BAR height (!!!).
+    CONTOUR   = float(50), # Ventilated contour (or 0). Gives + 3-5 mm. (!!!) Make sure differences between H1, LONG layers (!!!).
+    COVER     = float(15), # Sheet material thickness (or 0). (!!!) floating CONTOUR space accuracy +\- 2 mm. (!!!)
+    # OUTSCRIBE = bool(True) # in case of needs to outscribe THORUS into DOME building according COVER and CONTOUR. (!!!) NOT YET IMPLEMENTED (!!!).
 )
 
 # Compound options:
 EXTEND   = bool(True)   # Root as open contour system (fill up long, cols etc.)
-COMPOUND = bool(False)   # Simple compounded object (if LONG: COLS <= DETAILS/2)
+COMPOUND = bool(True)   # Simple compounded object (if LONG: COLS <= DETAILS/2)
 
 # Movement (mm):
 ROTATE = dict( # Rotate compounded or extended object
@@ -72,9 +73,9 @@ ROTATE = dict( # Rotate compounded or extended object
     COPY     = bool(True),     # Copy object to rotate
     TIMES     = int(1)          # How many pcs to COPY. eg. if COPY: polar array.
 )
-MOVE = dict( # Move compounded or extended object
+MOVE = dict(     # Move compounded or extended object
     DO       = bool(False),    # Do move or not
-    VECTOR = tuple((1000, -0, 0)), # Vector to move object (x, y, z)
+    VECTOR = tuple((1500, -0, 0)), # Vector to move object (x, y, z)
     COPY     = bool(False),     # Copy object to move
     TIMES     = int(1)          # How many pcs to COPY. eg. if COPY: ortho array.
 )
