@@ -348,7 +348,7 @@ class House(object):
         return [ self.insulant, self.cover ]
 
     def cprint(self, *args):
-        try: return self.house_frame.cprint(*args)
+        try: return self.insulant.cprint(*args)
         except AttributeError: return
 
     def __run(self, *args, **kwargs):
