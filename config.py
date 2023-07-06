@@ -55,7 +55,7 @@ FRAME = tuple((50, 200)) # (Width, Height) of wooden bar/pipe/sheet mtl. etc: ==
 HOUSE = dict( # THORUS still experimental:
     FRAME    = tuple((50, 200)),# (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
     INSULANT  = float(100),# Insulant thickness. (!!!) Must be lower than FRAME BAR height (!!!).
-    CONTOUR   = float(50), # Ventilated contour (or 0). Gives + 3-5 mm. (!!!) Make sure differences between H1, LONG layers (!!!).
+    CONTOUR   = float(50), # Ventilated contour (if 0 Gives + 1-3 mm). (!!!) Make sure differences between H1, LONG layers (!!!).
     COVER     = float(15), # Sheet material thickness (or 0). (!!!) floating CONTOUR space accuracy +\- 2 mm. (!!!)
     # OUTSCRIBE = bool(True) # in case of needs to outscribe THORUS into DOME building according COVER and CONTOUR. (!!!) NOT YET IMPLEMENTED (!!!).
 )
