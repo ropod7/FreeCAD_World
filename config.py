@@ -65,7 +65,7 @@ EXTEND   = bool(True)   # Root as open contour system (fill up long, cols etc.)
 COMPOUND = bool(True)   # Simple compounded object (if LONG: COLS <= DETAILS/2)
 
 # Movement (mm):
-ROTATE = dict( # Rotate compounded or extended object
+ROTATE = dict( # Rotate COMPOUNDed  object
     DO       = bool(False),     # Do rotate or not
     ANGLE  =  float(180),     # Angle to rotate object
     CENTER = tuple((0, 0, 0)), # Center of axis to rotate object (x, y, z)
@@ -73,7 +73,7 @@ ROTATE = dict( # Rotate compounded or extended object
     COPY     = bool(True),     # Copy object to rotate
     TIMES     = int(1)          # How many pcs to COPY. eg. if COPY: polar array.
 )
-MOVE = dict(     # Move compounded or extended object
+MOVE = dict(     # Move COMPOUNDed object
     DO       = bool(False),    # Do move or not
     VECTOR = tuple((1500, -0, 0)), # Vector to move object (x, y, z)
     COPY     = bool(False),     # Copy object to move
