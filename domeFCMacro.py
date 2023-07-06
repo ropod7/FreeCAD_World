@@ -2379,14 +2379,14 @@ def compoundModel(root, obj, s, OBJ, EXTEND, COMPOUND, ROTATE, MOVE):
         o = OBJ(obj)
     if COMPOUND:
         o.compound()
-    if ROTATE.get('DO'):                # at first rotate
+    if COMPOUND and ROTATE.get('DO'):                # at first rotate
         angle  = ROTATE.get('ANGLE')
         center = ROTATE.get('CENTER')
         axis   = ROTATE.get('AXIS')
         copy   = ROTATE.get('COPY')
         times  = ROTATE.get('TIMES') if copy else 1
         o.rotate(angle, center, axis, times, copy)
-    if MOVE.get('DO'):                  # next move
+    if COMPOUND and MOVE.get('DO'):                  # next move
         vector = MOVE.get('VECTOR')
         copy   = MOVE.get('COPY')
         times  = MOVE.get('TIMES') if copy else 1
