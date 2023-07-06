@@ -4,7 +4,7 @@
 __Name__ = 'FreeCAD World'
 __Comment__ = 'Flexible parametric design of domical objects'
 __Author__ = 'ropod7'
-__Version__ = '0.3.0'
+__Version__ = '0.3.1'
 __Status__ = 'alpha'
 __Date__ = '06.07.2023'
 __License__ = 'GNU General Public License v3.0'
