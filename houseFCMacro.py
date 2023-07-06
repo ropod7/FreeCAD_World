@@ -83,11 +83,6 @@ class InsulantModelLayer(MonoModelLayer, InsulantWireFrame):
     def _cutPolyH1ByFrame(self, block):
         frame = self.house_frame
         h1b = self.copy( frame.getRoot(FrameRoot._h1ba_) )
-        pTool = frame.getRoot(FrameRoot._hplb_)
-        abs_quatro = not self.less_rows and self.quatro
-        i = -1 if self.dometic else int(len(pTool)/2)
-        i = i if self.dometic or abs_quatro else i-1
-        pTool = self.copy([ pTool[i] ])
         h1b = self._moveBtmHorBarTool(h1b, frame.MTL, mono=True)
         return self._cutHPolysByTool(block, h1b)
 
@@ -127,14 +122,14 @@ class InsulantModelLayer(MonoModelLayer, InsulantWireFrame):
         elif thor_and_thor:
             bars = allb[l:]
         else: bars = allb
-        return self.copy(bars)
+        return self.copy(bars.copy())
 
     def _cutExtPoly(self, block):
         frame = self.house_frame
-        exTools = self.copy( frame.getRoot(FrameRoot._shte_) )
+        tools = self.copy( frame.getRoot(FrameRoot._shte_) )
         dir_y = -1 if self.disc else 1
-        exTools.extend(self.pArrayYB(exTools, dir_y))
-        for t in exTools:
+        tools.extend(self.pArrayYB(tools, dir_y))
+        for t in tools:
             block = self.cut(block, [t])
         return block
 
@@ -180,9 +175,11 @@ class InsulantRoot(MonoRoot, InsulantModelLayer):
         try: b, tp  = super()._buildExtH1(cls=__class__, reduc=reduc)
         except TypeError: return
         frame  = self.house_frame
-        block  = self.move(b, 0,-fWidth/2,0, 1, vis=True, cp=False)
-        exTool = self.copy( frame.getRoot(FrameRoot._shte_) )
-        block  = self._cutOnTopH1(block, exTool) if self.insH1N > 1 else block
+        b  = self.move(b, 0,-fWidth/2,0, 1, vis=True, cp=False)
+        tool = self.copy( frame.getRoot(FrameRoot._shte_) )
+        expr = self.insH1N > 1
+        cut = self._cutOnTopH1 if expr else self.cut
+        block = cut(b, tool)
         return self.extendRoot(tp, block)
 
     def _buildPolyPoly(self):
@@ -407,7 +404,7 @@ class HouseCompound(HouseExtend):
         hfr_total = super().compound(obj=self.hfr)
         ins_total = super().compound(obj=self.ins)
         cvr_total = super().compound(obj=self.cvr) if self.cvr else None
-        totals = [ ins_total, cvr_total ]
+        totals = [ hfr_total, ins_total, cvr_total ]
         [ self.obj.extend(abs_total, t) for t in totals if t is not None ]
 
     def rotate(self, *args):
