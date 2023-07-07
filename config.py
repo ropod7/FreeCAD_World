@@ -4,9 +4,9 @@
 __Name__ = 'FreeCAD World'
 __Comment__ = 'Flexible parametric design of domical objects'
 __Author__ = 'ropod7'
-__Version__ = '0.3.2'
+__Version__ = '0.3.3'
 __Status__ = 'alpha'
-__Date__ = '07.07.2023'
+__Date__ = '08.07.2023'
 __License__ = 'GNU General Public License v3.0'
 __Web__ = 'https://github.com/ropod7/FreeCAD_World'
 __Wiki__ = 'https://github.com/ropod7/FreeCAD_World/tree/master/docs'
@@ -36,19 +36,19 @@ __Files__ = 'https://github.com/ropod7/FreeCAD_World'
 ###############################################################################
 
 # Root object params (mm):
-DETAILS  = int(16)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
+DETAILS  = int(21)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
 OR     = float(4300) # Outscribed R of polygon (or inscribed polygon) & carriage on X axis
-H1     = float(1000) # Height of 1st 'floor' & carriage on Z (or 0)
-LONG   = float(10000) # Extension & carriage on Y axis (or 0)
+H1     = float(1400) # Height of 1st 'floor' & carriage on Z (or 0)
+LONG   = float(1000) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
     CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
     DISC   = bool(False)  # Outer side of thorus. OR = OR*3
 ) # template of SpreadSheet system of object:
 ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis (min: 0; max: DETAILS/4)
-COLS    = int(0)#DETAILS)   # Number of cols revolving around Z axis (min: 0; max: DETAILS)
+COLS    = int(DETAILS)   # Number of cols revolving around Z axis (min: 0; max: DETAILS)
 
 # Materials (mm)    [ (!!!) it works just with domeFCMacro.py module (!!!) ]:
-MONO   = float(500)        # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not FRAME
+MONO   = float(200)        # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not FRAME
 FRAME = tuple((50, 200)) # (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
 
 # Construction (mm) [ (!!!) it works just with houseFCMacro.py module (!!!) ]:
@@ -87,7 +87,7 @@ SOLID      = bool(True)    # Experimental attempt to speedup compound presentati
 # PRODUCTION = bool(False) # Produce Root for production (in case of STL or DXF needs)
 PRINT3D   = tuple((0, 0))  # Scale MONO or FRAME (not HOUSE) to 3D printer bed. if > 0 and COMPOUND: do
 CLEANUP    = bool(True)    # Clean up document before build
-CONFIG     = bool(True)    # Switch off CONFIG to extend macros by python3 code
+CONFIG     = bool(False)    # Switch off CONFIG to extend macros by python3 code
 
 ###################################################################################
 #######################################################################клинопись###
