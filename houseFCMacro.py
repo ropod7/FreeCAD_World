@@ -148,7 +148,7 @@ class InsulantRoot(MonoRoot, InsulantModelLayer):
         super().__init__(*args, RGB=(1.0,1.0,1.0), **kwargs)
 
     def wireFrame(self, *args, **kwargs):
-        super().wireFrame(*args, **kwargs)
+        super().wireFrame(*args, marking=True, **kwargs)
 
     def _build(self, **kwargs):
         super()._build(**kwargs)
@@ -417,6 +417,8 @@ class HouseCompound(HouseExtend):
 
 main = __name__ == '__main__'
 
+t = time.time()
+
 if main:
 
     import config
@@ -427,8 +429,6 @@ if main:
             WIREFRAME, ROOT, SOLID, PRINT3D, CLEANUP, CONFIG
 
 if main and CONFIG:
-
-    t = time.time()
 
     args = (LONG, H1, OR, DETAILS)
 
@@ -455,16 +455,65 @@ if main and CONFIG:
 
     objs = obj.root(solid=SOLID)
 
-    for o in [ Root._dome_, Root._corn_, Root._disc_, Root._thor_ ]:
-        compoundModel( root, objs, o, OBJ, EXTEND, COMPOUND, ROTATE, MOVE )
+    compoundModel( objs, OBJ, EXTEND, COMPOUND, ROTATE, MOVE )
 
+elif main and not CONFIG:
+    "Start coding here disabling CONFIG and TEST"
+    import random
+
+    rand = random.randrange
+    roots = [Root._dome_, Root._corn_, Root._disc_, Root._thor_]
+
+    DETAILS =  int(rand(4, 32))
+    ANGLE =    360/DETAILS
+    OR =       float(rand(500, 12000))
+    H1 =       float(rand(0, 6000))
+    LONG =     float(rand(0, 6000))
+    ROOT =     roots[rand(0, len(roots)-1)]
+    ROWS =     int(rand(0, int(DETAILS/4)))
+    ROWS =     [ROWS, int(DETAILS/4)][rand(0, 1)]
+    COLS =     int(rand(0, DETAILS))
+    FRAME_W =  int(rand(1, 100))
+    FRAME_H =  int(rand(FRAME_W, int(OR/2)))
+    INSULANT = float(rand(FRAME_W, FRAME_H))
+    CONTOUR =  float(rand(FRAME_W, FRAME_H))
+    COVER =    float(rand(FRAME_W, FRAME_H))
+
+    FRAME = tuple((FRAME_W, FRAME_H))
+
+    args = (LONG, H1, OR, DETAILS)
+
+    obj = House(
+        *args, root=ROOT, cleanup=True, FRAME=FRAME,
+        INSULANT=INSULANT, CONTOUR=CONTOUR, COVER=COVER
+        )
+
+    obj.wireFrame(ROWS, COLS, vis=False)
+
+    objs = obj.root(solid=True)
+
+    OBJ = HouseCompound
+
+    compoundModel( objs, OBJ, True, True, dict(DO=False), dict(DO=False) )
+
+    def tostr(obj, **kwargs):
+        l = '\n(!!!) CONFIG TURNED OFF (!!!)\n'
+        l += '-+-' * len(l) + '\n\n'
+        obj.cprint(l)
+        for k, v in kwargs.items():
+            obj.cprint(k + ': ' + str(v))
+        l += 'config.py: CONFIG = bool(False) ---> CONFIG = bool(True)'
+        obj.cprint(l)
+
+    tostr( obj,
+        DETAILS=DETAILS, ANGLE=ANGLE, OR=OR, H1=H1, LONG=LONG, ROOT=ROOT, \
+        ROWS=ROWS,COLS=COLS, FRAME_W=FRAME_W, FRAME_H=FRAME_H,             \
+        INSULANT=INSULANT,CONTOUR=CONTOUR, COVER=COVER                      \
+     )
+
+try:
     t = time.time() - t
     m = int(t/60)
     s = t - m*60
     obj.cprint('Executed in: {0} minutes, {1:.1f} seconds'.format(m, s))
-
-elif main and not CONFIG:
-    "Start coding here disabling CONFIG and TEST"
-    # As example created "heart system":
-    pass
-
+except: pass
