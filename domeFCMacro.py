@@ -727,7 +727,7 @@ class Movement(Model):
         self.recompute()
         return obj
 
-    def move(self, objs, x, y, z, times, vis=True, **kwargs):
+    def move(self, objs, x, y, z, times, **kwargs):
         assert isinstance(objs, list), "TypeError: objs must be list"
         if not len(objs): return list()
         obj = list()
@@ -1227,6 +1227,9 @@ class ModelRoot(ModelLayer):
         self.wfVisibility = vis
 
     def _build(self, solid=False):
+        if self.get(Blocks._wfr_) is None:
+            self.cprint('|...| Zero definitions |...|')
+            return
         wfr = self.get(Blocks._wfr_)
         self.solid = solid
         assert isinstance(wfr, dict) and len(wfr), "call wireFrame before build"
@@ -1749,24 +1752,22 @@ class FrameModelLayer(FrameWireFrame):
         f = self.extrude(s, (0,1,0), MTW)
         return f
 
-    def _cutBtmHorBar(self, base, MTL, h1wf):
+    def _cutBtmHorBar(self, base, h1bar):
         "In Thorus and Disc mode as tool works h1 bar of Corner"
-        tool = self.surface(*self.getWfr(h1wf)) # wires as made H1 bar of
-        tool = self.extrude(tool, (0, 1, 0), MTL.W)
-        tool = self._moveBtmHorBarTool(tool, MTL)
-        b = self._cutHPolysByTool(base, tool)
-        return b
+        tool = self.copy(h1bar)
+        tool = self._moveBtmHorBarTool(tool, self.MTL)
+        return self._cutHPolysByTool(base, tool)
 
 class FrameRoot(FrameModelLayer):
     """Creator of bar root objects"""
     _mtrl_ = FrameWireFrame._mtl_
-    _h1ba_ = WireFrame._h1_
-    _vplb_ = WireFrame._vpl_ + _mtrl_
     _botm_ = WireFrame._btm_
+    _h1ba_ = WireFrame._h1_
+    _hdrp_ = str('h1drops')
+    _vplb_ = WireFrame._vpl_ + _mtrl_
     _hplb_ = FrameWireFrame._hpl_
     _lnge_ = FrameWireFrame._rof_
     _shte_ = FrameWireFrame._sht_
-    _hdrp_ = str('h1drops')
 
     def __init__(self, tp, matW, matH, *args, **kwargs):
         self._setMaterial(width=matW, height=matH, RGB=(1.0,0.8,0.0), **kwargs)
@@ -1778,33 +1779,30 @@ class FrameRoot(FrameModelLayer):
 
     def _build(self, **kwargs):
         super()._build(**kwargs)
-        self.__bottomHorizonBar()
-        self.__h1WallBar()
+        h1bar = self.__h1WallBar()
+        self.__bottomHorizonBar(h1bar)
         self.__verticalPolyBar()
         self.__horizonPolyBars(self.rows)
         self.__longHorisonBar()
         return self.get(Blocks._roo_)
 
-    def __bottomHorizonBar(self):
-        if not self.h1 or not self.cols: return
-        tp = __class__._botm_
-        btmwf = self._getWfType(tp, cls=__class__)
-        WFh1 = __class__._h1ba_
-        h1wf  = self._getWfType(WFh1, cls=__class__)
-        cornwf = WFh1 + Root._corn_ + __class__._mtrl_
-        h1wf = cornwf if self.thor else h1wf
-        s = self.surface(*self.getWfr(btmwf))
-        e = self.extrude(s, (0, 0, 1), self.MTL.H, s=False)
-        bb = self._cutBtmHorBar(e, self.MTL, h1wf)
-        return self.extendRoot(tp, bb )
-
     def __h1WallBar(self):
-        if not self.h1 or self.thor: return
         tp = __class__._h1ba_
+        if self.h1 and self.thor: return self.getRoot(tp)
+        elif not self.h1: return
         h1wfr = self._getWfType(WireFrame._h1_, cls=__class__)
         h1wfr = self.getWfr(h1wfr)
         h1 = self._extrudeVertical( h1wfr, self.MTL.W )
         return self.extendRoot(tp, h1)
+
+    def __bottomHorizonBar(self, h1bar):
+        if not self.h1 or not self.cols: return
+        tp = __class__._botm_
+        btmwf = self._getWfType(tp, cls=__class__)
+        s = self.surface(*self.getWfr(btmwf))
+        e = self.extrude(s, (0, 0, 1), self.MTL.H, s=False)
+        bb = self._cutBtmHorBar(e, h1bar)
+        return self.extendRoot(tp, bb)
 
     def __horizonPolyBars(self, n):
         if not self.cols: return
@@ -2053,19 +2051,20 @@ class Extend(object):
 
     def __dropH1s(self, obj, todrp, tps, extm, **kwargs):
         "array mechanism to fill up h1 by horisons"
-        if not self.h1: return
+        if not self.h1 or obj.insH1N == 1: return
         drop = obj.h1DropArray(todrp, **kwargs).copy()
         [ extm(t, drop) for t in tps ]
         return drop
 
-    def __liftH1s(self, obj, tolft, tps, extm):
+    def __liftH1s(self, obj, tolft, tps, extm, **kwargs):
         "array mechanism to fill up h1 by horisons"
-        if not self.h1: return [ extm(t, []) for t in tps ]
-        lift = obj.h1LiftArray(tolft)
+        if not self.h1: return #[ extm(t, []) for t in tps ]
         if obj.insH1N > 1:
-            [ extm(t, tolft + lift.copy()) for t in tps ]
+            lift = obj.h1LiftArray(tolft, **kwargs).copy()
+            lift = tolft + lift
         else:
-            [ extm(t, lift) for t in tps ]
+            lift = tolft
+        [ extm(t, lift) for t in tps ]
         return lift
 
     def __revPolyY(self, obj, torev, tps, extm):
@@ -2079,7 +2078,7 @@ class Extend(object):
         n = (self.rows-1)*-1 if obj.disc else self.rows-1
         vpl = obj.pArrayYB(torev, n)
         toall = torev + vpl.copy()
-        [extm(t, toall.copy()) for t in tps]
+        [ extm(t, toall.copy()) for t in tps ]
         return toall.copy()
 
     def __moveToThor(self, obj, tomove, tps, extm, **kwargs):
@@ -2140,7 +2139,7 @@ class Compound(Extend):
         Trigonometry based compound extended object:
             moved by: -X carriage on Y: LONG/2
         """
-        obj  = self.obj if obj is None else obj
+        assert isinstance(obj, ModelRoot), "TypeError: unknown type of building"
         expr = not obj.long and obj.cols<obj.DETAILS-1
         if expr and obj.cols: return
         totl  = __class__._totl_
@@ -2168,8 +2167,7 @@ class Compound(Extend):
 
     def move(self, vector, *args):
         objs = self.obj.get(__class__._totl_)
-        x,y,z = vector
-        return super()._move(objs, x,y,z, *args)
+        return super()._move(objs, *vector, *args)
 
 # END: Extend and compound super system
 
@@ -2182,14 +2180,14 @@ class MonoExtend(Compound):
         if not self.h1 and not self.rows: return
         self.__completePartialPoly(obj)
         self._revPolyZ(obj, self.cols-1)
-        self.__completeExtension(obj)
+        self.__completeMonoExtension(obj)
 
     def __completePartialPoly(self, obj):
         self._liftPolyH1s(obj)
         lofts = obj.getRoot(MonoRoot._hpl_)
         self._collectPartial(obj, lofts)
 
-    def __completeExtension(self, obj):
+    def __completeMonoExtension(self, obj):
         if not self.long: return
         self._liftExtH1s(obj)
         revs = self._revHoriExtY(obj)
@@ -2241,7 +2239,7 @@ class FrameExtend(Compound):
         super().__init__(FrameRoot, obj, **kwargs)
         self.__completePartialPoly(obj)
         self._revPolyZ(obj, self.cols-1)
-        self.__completeExtension(obj)
+        self.__completeFrameExtension(obj)
 
     def __completePartialPoly(self, obj):
         "vPoly array, horison drops"
@@ -2250,13 +2248,12 @@ class FrameExtend(Compound):
         self.__dropHoriPolys(obj)
         self._collectPartial(obj)
 
-    def __completeExtension(self, obj):
+    def __completeFrameExtension(self, obj):
         "shorts array, horisons drop, bottoms, long array"
         if not self.long: return obj.extendExt(Extend._alle_, list())
         extm = obj.extendExt
         short, lng, revs = self._revHoriExtY(obj)
-        short = short.copy()
-        drops = self._dropExtH1s(obj, short)
+        drops = self._dropExtH1s(obj, short) or []
         puts = self.__dropAndPutBottomExt(obj, short)
         self.__moveExtH1ToThor(obj, puts, drops, extm)
         self._moveExtHToThor(obj, revs)
@@ -2322,8 +2319,8 @@ class FrameExtend(Compound):
     def __collectRoof(self, obj, lng, extm):
         ok = obj.equal_rows and obj.quatro
         tp = Extend._alle_
-        if obj.thor and ok: return
-        # elif obj.dome and ok or not self.rows: return extm(tp, lng)
+        if   obj.thor and ok: return
+        elif obj.dome and ok: return
         return extm(tp, lng)
 
     # END: Extension expand system
@@ -2334,13 +2331,14 @@ class FrameCompound(FrameExtend):
         super().__init__(*args, **kwargs)
         self._collectTotal(self.obj)
 
+    def compound(self, obj=None, **kwargs):
+        total = super().compound(obj=obj, **kwargs)
+        expr = obj.dome and obj.equal_rows and obj.quatro
+        if not expr: return total
+        lng = obj.getRoot(FrameRoot._lnge_)
+        return obj.extend(Compound._totl_, lng)
+
 # END: Basic flexible Frame Root extends and compound
-
-# BEGIN: Conveyor system
-
-class Conveyor(object): pass
-
-# END: Conveyor system
 
 # BEGIN: Coding
 
@@ -2378,7 +2376,7 @@ def compoundModel(root, obj, s, OBJ, EXTEND, COMPOUND, ROTATE, MOVE):
     if EXTEND:
         o = OBJ(obj)
     if COMPOUND:
-        o.compound()
+        o.compound(obj=obj)
     if COMPOUND and ROTATE.get('DO'):                # at first rotate
         angle  = ROTATE.get('ANGLE')
         center = ROTATE.get('CENTER')
