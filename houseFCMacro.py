@@ -18,16 +18,15 @@ import inspect
 import domeFCMacro
 importlib.reload(domeFCMacro)
 
-from domeFCMacro import ThorusPoints, FrameDome, FrameCorner, FrameDisc, \
-        FrameThorus, FrameRoot, Materials, MonoWireFrame, ModelRoot,      \
-        MonoDome, MonoCorner, Frame, MonoModelLayer, MonoRoot,             \
-        Root, MonoExtend, MonoDisc, MonoThorus, Compound,                   \
-        compoundModel, MonoCompound, FrameExtend, FrameCompound
+from domeFCMacro import Root, FrameRoot, FrameDome, FrameCorner, \
+        FrameDisc, FrameThorus, MonoWireFrame, MonoModelLayer,    \
+        MonoRoot, MonoDome, MonoCorner, MonoDisc, MonoThorus,      \
+        Compound, FrameCompound, MonoCompound, compoundModel
+
 
 # BEGIN: House Frame root creation system
 
 class HouseFrameRoot(FrameRoot):
-    _mtrl_ = FrameRoot._mtl_
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -77,8 +76,6 @@ class InsulantWireFrame(MonoWireFrame):
         super()._createMonoWireFrame(*args, mtl=mtl, **kwargs)
 
 class InsulantModelLayer(MonoModelLayer, InsulantWireFrame):
-    _tool_ = str('tools')
-    _fram_ = str('frame_') + _tool_
 
     def _cutPolyH1ByFrame(self, block):
         frame = self.house_frame
@@ -135,8 +132,8 @@ class InsulantModelLayer(MonoModelLayer, InsulantWireFrame):
 
     def _cutOnTopH1(self, block, tool):
         frame = self.house_frame
-        times = self.house_frame.insH1N-1
-        dim = self.house_frame.insH1L
+        times = frame.insH1N-1
+        dim = frame.insH1L
         dim *= times
         b = self.h1Lift(block, dim)
         b = self.cut(b, tool)
@@ -144,14 +141,8 @@ class InsulantModelLayer(MonoModelLayer, InsulantWireFrame):
         b = self.cut(b, tool)
         return self.h1Drop(b, dim+dim/times)
 
-    def _getExtrudeReduce(self):
-        frame = self.house_frame
-        fWidth = self.frame[0]
-        return (self.insLongL-frame.insLongL+fWidth), fWidth
-
 class InsulantRoot(MonoRoot, InsulantModelLayer):
     _mtrl_ = InsulantWireFrame._mtl_
-    _hpl_  = MonoRoot._hpl_
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, RGB=(1.0,1.0,1.0), **kwargs)
@@ -171,23 +162,24 @@ class InsulantRoot(MonoRoot, InsulantModelLayer):
         return self.extendRoot(tp, block)
 
     def _buildExtH1(self):
-        reduc, fWidth = self._getExtrudeReduce()
-        try: b, tp  = super()._buildExtH1(cls=__class__, reduc=reduc)
+        fWidth = self.frame[0]
+        try: b, tp = super()._buildExtH1(cls=__class__, reduc=fWidth)
         except TypeError: return
-        frame  = self.house_frame
-        b  = self.move(b, 0,-fWidth/2,0, 1, vis=True, cp=False)
-        tool = self.copy( frame.getRoot(FrameRoot._shte_) )
-        expr = self.insH1N > 1
-        cut = self._cutOnTopH1 if expr else self.cut
-        block = cut(b, tool)
+        block = self.move(b, 0,-fWidth/2,0, 1, vis=True, cp=False)
+        if not self.thor:
+            frame = self.house_frame
+            tool = self.copy( frame.getRoot(FrameRoot._shte_) )
+            expr = self.insH1N > 1
+            cut = self._cutOnTopH1 if expr else self.cut
+            block = cut(block, tool)
         return self.extendRoot(tp, block)
 
     def _buildPolyPoly(self):
         blocks = super()._buildPolyPoly(cls=__class__)
 
     def _buildExtPoly(self):
-        reduc, fWidth = self._getExtrudeReduce()
-        try: b, tp = super()._buildExtPoly(cls=__class__, reduc=reduc)
+        fWidth = self.frame[0]
+        try: b, tp = super()._buildExtPoly(cls=__class__, reduc=fWidth)
         except TypeError: return
         b = self.move(b, 0,-fWidth/2,0, 1, vis=True, cp=False)
         block = self._cutExtPoly(b)
@@ -207,7 +199,7 @@ class InsulantRoot(MonoRoot, InsulantModelLayer):
         return self.__house_frame_
 
     @house_frame.deleter
-    def house_frame(self):                          # calling in Compound options
+    def house_frame(self):
         del self.__house_frame_
 
 class InsulantDome(MonoDome, InsulantRoot):
@@ -358,17 +350,18 @@ class House(object):
 
 # END: House root creation system
 
-# BEGIN: Basic flexible extends and compounds oh House
+# BEGIN: Basic flexible extend and compound of House
 
-class HouseExtend(FrameExtend, MonoExtend):
+class HouseExtend(FrameCompound, MonoCompound):
 
     def __init__(self, objs, **kwargs):
         insulant, cover = objs
-        tmp = FrameExtend(insulant.house_frame, **kwargs)
+        tmp = FrameCompound(insulant.house_frame, **kwargs)
         self.__hfr_ = tmp.obj
-        tmp = MonoExtend(insulant, **kwargs)
+        del insulant.house_frame                                         # reduce amount of objects
+        tmp = MonoCompound(insulant, **kwargs)
         self.__ins_ = tmp.obj
-        tmp = MonoExtend(cover, **kwargs) if cover else None
+        tmp = MonoCompound(cover, **kwargs) if cover else None
         self.__cvr_ = tmp.obj if cover else None
         del tmp
 
@@ -394,16 +387,12 @@ class HouseCompound(HouseExtend):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._collectTotal(self.hfr)
-        self._collectTotal(self.ins)
-        if self.cvr:
-            self._collectTotal(self.cvr)
 
-    def compound(self):
+    def compound(self, **kwargs):
         abs_total = __class__._abs_totl_
-        hfr_total = super().compound(obj=self.hfr)
-        ins_total = super().compound(obj=self.ins)
-        cvr_total = super().compound(obj=self.cvr) if self.cvr else None
+        hfr_total = FrameCompound.compound(self, obj=self.hfr)
+        ins_total = MonoCompound.compound(self, obj=self.ins)
+        cvr_total = MonoCompound.compound(self, obj=self.cvr) if self.cvr else None
         totals = [ hfr_total, ins_total, cvr_total ]
         [ self.obj.extend(abs_total, t) for t in totals if t is not None ]
 
@@ -416,7 +405,7 @@ class HouseCompound(HouseExtend):
         x,y,z = vector
         return super()._move(objs, x,y,z, *args)
 
-# END: Basic flexible extends and compound oh House
+# END: Basic flexible extend and compound of House
 
 # BEGIN: Coding
 
