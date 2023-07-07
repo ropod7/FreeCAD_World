@@ -522,6 +522,16 @@ class FreeCADObject(MacroRoot):
     def _setShapeColor(self, obj):
         self.Object(obj).ViewObject.ShapeColor = self.RGB
 
+    def _getLabel(self, obj):
+        self.FCObject(obj).Label
+
+    def _label(self, obj, l):
+        assert isinstance(l, str), "TypeError: label must be string"
+        s = str(type(self))
+        label = s[s.rfind(".")+1:].replace("'>", "_")
+        label += self.pointSystem.upper() + "_" + l.upper()
+        self.FCObject(obj).Label = label
+
     @property
     def ActiveObject(self):
         return self.fcDoc.ActiveObject
@@ -590,6 +600,14 @@ class BaseTools(FreeCADObject):
         self._setShapeColor(e)
         self._setVisibility(surface, False)
         return self._setVisibility(e, vis)
+
+    def FCCompound(self, links, name):
+        c = self.AddObject('Part::Compound',' Compound')
+        self.autogroup(links)
+        c.Links = links
+        self._label(c, name)
+        self.recompute()
+        return self._setVisibility(c, True)
 
     def Loft(self, faces, ruled=False, closed=False):
         assert len(faces) == 2, "LengthError: number of faces must be 2"
@@ -997,18 +1015,22 @@ class Blocks(MutableMapping, RightPoints):
     # BEGIN: Concrete operators
 
     def appendWfr(self, name, l):
+        [ self._label(i, name) for i in l ]
         return self._appendRoot(__class__._wfr_, name, l)
 
     def extendWfr(self, name, l):
+        [ self._label(i, name) for i in l ]
         return self._extendRoot(__class__._wfr_, name, l)
 
     def extendDoubledWfr(self, name, i, l):
+        [ self._label(j, name) for j in l ]
         return self.extendDoubled(Blocks._wfr_, name, i, l)
 
     def getWfr(self, name):
         return self._getRoot(__class__._wfr_, name)
 
     def extendRoot(self, name, l):
+        [ self._label(i, name) for i in l ]
         return self._extendRoot(__class__._roo_, name, l)
 
     def getRoot(self, name):
@@ -1102,7 +1124,7 @@ class Materials(list, ProductionCalc):
 class WireFrame(ModelMovement, Blocks):
     _btm_ = str('bottom')
     _hpl_ = str('hPoly')
-    _h1_  = str('h1')
+    _h1_  = str('h1_')
     _vpl_ = str('vPoly')
     _mp_  = str('marking')
 
@@ -1113,7 +1135,7 @@ class WireFrame(ModelMovement, Blocks):
         wire1 = self.wire(points, vis=True) if set(zl) != {0} else list()
         wire2 = self.wire([(0, 0, 0), (0, -MTL.H or -MTL.T, 0)], vis=True)
         wires = self._markingArray(wire1, wire2)
-        return wires
+        return self.FCCompound(wires + wire1, __class__._mp_)
 
     def _bottom(self, w, MTL, mtl, **kwargs):
         if not self.h1 or not self.cols: return list()
@@ -1332,7 +1354,7 @@ class MonoBlocks(MonoMovement):
 class MonoWireFrame(MonoBlocks):
     _mtl_ = str('mono')
 
-    def _createMonoWireFrame(self, ny, MTL, mtl=None, **kwargs):
+    def _createMonoWireFrame(self, ny, MTL, mtl=None, marking=False, **kwargs):
         mtl = __class__._mtl_ if mtl is None else mtl
         self.oPOINTS.append( self.oPolyPoints(self.OR) )
         self.insertionLongUnits(self.long, 0)
@@ -1347,7 +1369,8 @@ class MonoWireFrame(MonoBlocks):
             self._verticalPoly(ny, mtl)
         self.__createHPolyWires(ny, mtl, MTL)
         self.__createToolWire()
-        self._marking(MTL)
+        if marking:
+            self._marking(MTL)
         return self.get(Blocks._wfr_)
 
     def __createToolWire(self):
@@ -1492,9 +1515,9 @@ class MonoRoot(MonoModelLayer):
         self._setMaterial(thickn=thickn, RGB=RGB, **kwargs)
         super().__init__(tp, *args, **kwargs)
 
-    def wireFrame(self, ny, nz, **kwargs):
+    def wireFrame(self, ny, nz, marking=False, **kwargs):
         super().wireFrame(ny, nz, **kwargs)
-        self._createMonoWireFrame(ny, self.MTL, **kwargs)
+        self._createMonoWireFrame(ny, self.MTL, marking=marking, **kwargs)
 
     def _build(self, **kwargs):
         if not self.rows and not self.h1: return
@@ -1697,7 +1720,7 @@ class FrameWireFrame(FrameBlocks):
     _sht_ = str('short')
     _rof_ = str('long')
 
-    def _createFrameWireFrame(self, ny, MTL, **kwargs):
+    def _createFrameWireFrame(self, ny, MTL, marking=False, **kwargs):
         self.insertionH1Units(self.h1, MTL.H)
         self.insertionLongUnits(self.long, MTL.H)
         ws = self.rightHypothenuse(MTL.H)
@@ -1710,7 +1733,8 @@ class FrameWireFrame(FrameBlocks):
             self._verticalPoly(ny, mtl)
             self._bottom(w, MTL, mtl)
             self._horizonPoly(ny, w, mtl, MTL)
-        self._marking(MTL)
+        if marking:
+            self._marking(MTL)
         return self.get(Blocks._wfr_ + mtl)
 
     def __horisonShort(self, w, rows, MTL):
@@ -2370,8 +2394,7 @@ def convert(MTL, lng, h1, Or, dets, thor, comp, p3d):
         mtl = [s(MTL, scale)]
     return (*mtl, *converted)
 
-def compoundModel(root, obj, s, OBJ, EXTEND, COMPOUND, ROTATE, MOVE):
-    if not root is str(s): return list()
+def compoundModel(obj, OBJ, EXTEND, COMPOUND, ROTATE, MOVE):
     o = None
     if EXTEND:
         o = OBJ(obj)
@@ -2432,13 +2455,12 @@ if main and CONFIG:
 
     OBJ = FrameCompound if not MONO else MonoCompound
 
-    obj.wireFrame(ROWS, COLS, vis=WIREFRAME)
+    obj.wireFrame(ROWS, COLS, marking=True, vis=WIREFRAME)
     if not ROOT: exit(0)
 
     obj.root(solid=SOLID)
 
-    for o in [ Root._dome_, Root._corn_, Root._disc_, Root._thor_ ]:
-        compoundModel( root, obj, o, OBJ, EXTEND, COMPOUND, ROTATE, MOVE )
+    compoundModel( obj, OBJ, EXTEND, COMPOUND, ROTATE, MOVE )
 
     t = time.time() - t
     m = int(t/60)
@@ -2447,5 +2469,7 @@ if main and CONFIG:
 
 elif main and not CONFIG:
     "Start coding here disabling CONFIG and TEST"
-    # As example created "heart system":
-    pass
+    l = '(!!!) CONFIG TURNED OFF (!!!)\n'
+    l += '-+-' * len(l) + '\n\n'
+    l += 'config.py: CONFIG = bool(False) ---> CONFIG = bool(True)'
+    MacroRoot().cprint(l)
