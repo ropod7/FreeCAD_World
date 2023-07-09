@@ -21,7 +21,7 @@ class Trigon(object):
 
     def __init__(self, r, d):
         "Receives OR and DETAILS definitions"
-        assert isinstance(r, float), "TypeError: r (OR) must be float"
+        assert isinstance(r, float), "TypeError: r (OR) must be type of float"
         self.__OR_ = r
         self.__DETAILS = d
 
@@ -56,6 +56,13 @@ class Trigon(object):
     def isoscelesBase(self, Or):
         return Or * 2 * self.__cos(self.DETAIL_A)
 
+    def reducedX_ORRootPoints(self):
+        angle = self.DETAIL_A - self.DETAIL_B/2
+        r = self.X_OR + self.X_ORreduced
+        x = self.rightCathetusA_ByA(r,   angle)
+        y = self.rightSideB_ByAA(x, angle)
+        return x, y
+
     def __cos(self, c):
         return math.cos(math.radians(c))
 
@@ -79,7 +86,7 @@ class Trigon(object):
 
     @OR.setter
     def OR(self, Or):
-        assert isinstance(Or, float), "TypeError: Or (type) is float"
+        assert isinstance(Or, float), "TypeError: Or must be type of float"
         self.__OR_ = Or
         return self.__OR_
 
@@ -189,17 +196,13 @@ class ThorusPoints(TwoPoints):
         First couple of root X and Y points in case of Y > 0,
         to find complete proportions of toroidal trigonometry.
         """
-        root_x = self.oPOINTS[0][1][0]
-        root_y = self.oPOINTS[0][1][1]
-        if self.X_ORreduced:                                             # reduced after object __init__
-            angle = self.DETAIL_A - self.DETAIL_B/2
-            r = self.X_OR + self.X_ORreduced
-            try:
-                root_x = self.rightCathetusA_ByA(r,   angle)
-                root_y = self.rightSideB_ByAA(root_x, angle)
+        if not self.X_ORreduced:
+            root_x = self.oPOINTS[0][1][0]
+            root_y = self.oPOINTS[0][1][1]
+        else:                                                            # reduced after object __init__
+            try: root_x, root_y = self.reducedX_ORRootPoints()
             except ZeroDivisionError:                                    # in case of DETAILS == 4
-                root_x = 0
-                root_y = self.X_OR + self.X_ORreduced
+                root_x, root_y = 0, self.X_OR + self.X_ORreduced
         root_x = root_x if self.corn else root_x*2 - (root_x - x)
         root_y = root_y if self.corn else root_y*2 - (root_y - y)
         return root_x, root_y
@@ -279,7 +282,7 @@ class ThorusPoints(TwoPoints):
 
     @pointSystem.setter
     def pointSystem(self, tp):
-        assert isinstance(tp, str), "TypeError: tp (type) is str"
+        assert isinstance(tp, str), "TypeError: tp must be type of str"
         assert tp in __class__._roots_, "not in %s" % __class__._roots_
         self.__type_ = tp
         return self.__type_
@@ -317,7 +320,7 @@ class ThorusPoints(TwoPoints):
 
     @X_OR.setter
     def X_OR(self, reduc):
-        assert isinstance(reduc, float),        "TypeError: reductor must be float"
+        assert isinstance(reduc, float),        "TypeError: reductor must be type of float"
         try: assert self.__X_OR_ != self.OR,    "OR already produced"
         except AttributeError: pass
         self.__X_OR_ = reduc
@@ -332,7 +335,7 @@ class ThorusPoints(TwoPoints):
 
     @X_ORreduced.setter
     def X_ORreduced(self, reduc):
-        assert isinstance(reduc, float),      "TypeError: reductor must be float"
+        assert isinstance(reduc, float),      "TypeError: reductor must be type of float"
         try: assert self.__X_ORreduced_ == 0, "OR already produced"
         except AttributeError: pass
         self.__X_ORreduced_ = reduc
@@ -345,8 +348,8 @@ class ExtensionPoints(ThorusPoints):
 
     def __init__(self, tp, l, h, *args, **kwargs):
         "Receives type, LONG and H1 definitions"
-        assert isinstance(l, float), "TypeError: l (LONG) must be float"
-        assert isinstance(h, float), "TypeError: h (H1)   must be float"
+        assert isinstance(l, float), "TypeError: l (LONG) must be type of float"
+        assert isinstance(h, float), "TypeError: h (H1)   must be type of float"
         super().__init__(tp, *args, **kwargs)
         self.ZERO_Y = -l   # To measure extensions on Y carriage
         self.ZERO_Z =  h   # To lift all types of polygonal geometry
@@ -372,7 +375,7 @@ class ExtensionPoints(ThorusPoints):
     def __insertionUnits(self, size, MTT):
         "Returns dimension and amount of internal orthogonal objects"
         if not size: return 0, 0
-        r = self.X_OR + self.X_ORreduced
+        r = self.OR + self.X_ORreduced
         reduc = r/self.DETAILS
         amount = int(size / self.isoscelesBase(r - reduc)) or 1
         return size / amount, amount
@@ -423,7 +426,20 @@ import FreeCAD, FreeCADGui
 from FreeCAD import Base
 import Draft, Part
 
-class MacroRoot(object):
+from PySide import QtGui
+
+class Qt(object):
+
+    def inform(self, msg, info='Information'):
+        assert isinstance(msg, str),  "TypeError: message must be type of str"
+        assert isinstance(info, str), "TypeError: inforamtion must be type of str"
+        return self.__QMessage.information(None, info, msg)
+
+    @property
+    def __QMessage(self):
+        return QtGui.QMessageBox
+
+class MacroRoot(Qt):
 
     def __init__(self):
         self.pl = FreeCAD.Placement()
@@ -450,12 +466,15 @@ class MacroRoot(object):
 
     def cprint(self, *args):
         l = len([*args])
-        s = "%s; " * l + "\n" if l > 1 else "%s\n"
+        if l > 1:
+            s = '{2}s; {0}{1}'.format(l, chr(10), chr(37))
+        else:
+            s = '{1}s{0}'.format(chr(10), chr(37))
         args = tuple([ str(a) for a in [*args] ])
         FreeCAD.Console.PrintMessage(s % args)
 
     def __convertDocName(self, name):
-        assert isinstance(name, str), "TypeError: doc name must be str"
+        assert isinstance(name, str), "TypeError: doc name must be type of str"
         ords = self.__ords()
         for o in ords: name = name.replace(chr(o), '_')
         return name
@@ -498,7 +517,7 @@ class FreeCADObject(MacroRoot):
         return self.fcDoc.addObject(feature, name)
 
     def Object(self, obj):
-        return self.GuiObject(obj).Object
+        return self.FCObject(obj)
 
     def remove(self, obj):
         self.fcDoc.removeObject(obj)
@@ -509,31 +528,39 @@ class FreeCADObject(MacroRoot):
         [ self.remove(obj.Name) for obj in self.roots ]
         return self.cleanUp(cleanup=cleanup)
 
-    def GuiObject(self, obj):
-        return self.guiDoc.getObject(obj.Name)
-
     def FCObject(self, obj):
         return self.fcDoc.getObject(obj.Name)
 
     def _setVisibility(self, obj, vis):
-        self.GuiObject(obj).Visibility = vis
+        self.FCObject(obj).Visibility = vis
         return obj
 
     def _setShapeColor(self, obj):
         self.Object(obj).ViewObject.ShapeColor = self.RGB
 
-    def _getLabel(self, obj):
-        self.FCObject(obj).Label
-
-    def _label(self, obj, l):
-        assert isinstance(l, str), "TypeError: label must be string"
-        s = str(type(self))
-        label = s[s.rfind(".")+1:].replace("'>", "_")
-        label += self.pointSystem.upper() + "_" + l.upper()
-        self.FCObject(obj).Label = label
+    def _setLabel(self):
+        if self.label == self.name:
+            self.label = self.label
+        return self.label
 
     @property
-    def ActiveObject(self):
+    def name(self):
+        return self.active.Name
+
+    @property
+    def label(self):
+        return self.active.Label
+
+    @label.setter
+    def label(self, l):
+        assert isinstance(l, str), "TypeError: label must be type of string"
+        s = str(type(self))
+        label = s[s.rfind('.')+1:].replace('\'>', '_')
+        label += self.pointSystem.upper() + '_{}'.format(l)
+        self.active.Label = label
+
+    @property
+    def active(self):
         return self.fcDoc.ActiveObject
 
     @property
@@ -564,71 +591,78 @@ class BaseTools(FreeCADObject):
         self.autogroup(polygon)
         return self._setVisibility(polygon, vis)
 
-    def Surface(self, edges, vis=False):
+    def Surface(self, edges, vis=False, name='Surface'):
         assert len(edges) == 2, "LengthError: number of edges must be 2"
         edge1, edge2 = edges
-        s = self.AddObject('Part::RuledSurface', 'Surface')
-        self.ActiveObject.Curve1 = ( edge1, ['Edge1'] )
-        self.ActiveObject.Curve2 = ( edge2, ['Edge1'] )
+        s = self.AddObject('Part::RuledSurface', name)
+        s.Curve1 = ( edge1, ['Edge1'] )
+        s.Curve2 = ( edge2, ['Edge1'] )
+        self.label = name
         return self._setVisibility(s, vis)
 
-    def Cut(self, base, tool, bvis=False):
-        c = self.AddObject('Part::Cut', 'Cut')
+    def Cut(self, base, tool, bvis=False, name='Cut'):
+        c = self.AddObject('Part::Cut', name)
         self._setShapeColor(tool)
         c.Base = self.FCObject(base)
         c.Tool = self.FCObject(tool)
+        self.label = name
         self._setShapeColor(c)
         self._setVisibility(base, bvis)
         self._setVisibility(tool, False)
         return c
 
-    def Fusion(self, shapes, vis=True):
-        f = self.AddObject('Part::MultiFuse', 'Fusion')
+    def Fusion(self, shapes, vis=True, name='Fusion'):
+        f = self.AddObject('Part::MultiFuse', name)
         f.Shapes = [ self.FCObject(o)   for o in shapes ]
         [ self._setVisibility(o, False) for o in shapes ]
+        self.label = name
         self._setShapeColor(f)
         return self._setVisibility(f, vis)
 
-    def Extrude(self, surface, direction, height, s=True, vis=True, d="Custom"):
-        e = self.AddObject('Part::Extrusion', 'Extrude')
+    def Extrude(self, surface, direction, height, s=True, vis=True, d="Custom", name='Extrude'):
+        e = self.AddObject('Part::Extrusion', name)
         e.Base = surface
         e.DirMode = d
         e.Dir = self.vector(direction)
         e.LengthFwd = height
         e.Solid = self.solid
         e.Symmetric = s
+        self.label = name
         self._setShapeColor(e)
         self._setVisibility(surface, False)
         return self._setVisibility(e, vis)
 
-    def FCCompound(self, links, name):
-        c = self.AddObject('Part::Compound',' Compound')
+    def FCCompound(self, links, name='FCCompound'):
+        c = self.AddObject('Part::Compound', name)
         self.autogroup(links)
         c.Links = links
-        self._label(c, name)
+        self.label = name
         self.recompute()
         return self._setVisibility(c, True)
 
-    def Loft(self, faces, ruled=False, closed=False):
+    def Loft(self, faces, ruled=False, closed=False, name='Loft'):
         assert len(faces) == 2, "LengthError: number of faces must be 2"
-        loft = self.AddObject('Part::Loft', 'Loft')
+        loft = self.AddObject('Part::Loft', name)
         loft.Sections = faces
         loft.Solid = self.solid
         loft.Ruled = ruled
         loft.Closed = closed
+        self.label = name
         self._setShapeColor(loft)
         [ self._setVisibility(f, False) for f in faces ]
         return loft
 
-    def Slice(self, obj, vector=(0,1,0), move=0, hideobj=True):
-        wires = list()
+    def Slice(self, obj, vector=(0,1,0), move=0, hideobj=False, name='Slice'):
         shape = obj.Shape
+        wires = list()
         bv = self.vector(*vector)
         [ wires.append(i) for i in shape.slice(bv, move) ]
-        feature = self.__Feature()
-        feature.Shape = self.__Compound(wires)
-        feature.purgeTouched()
-        return self._setVisibility(obj, hideobj) if hideobj else obj
+        slicer = self.__Feature(name)
+        slicer.Shape = self.__Compound(wires)
+        slicer.purgeTouched()
+        self.label = name
+        # self._setVisibility(obj, hideobj)
+        return slicer
 
     def Rotate(self, objs, A, z, a, cp=True, vis=True):
         Draft.rotate(objs,A,self.vector(*z),axis=self.vector(*a),copy=cp)
@@ -708,6 +742,13 @@ class Model(BaseTools):
         self.recompute()
         return l
 
+    def slice(self, objs, *args, **kwargs):
+        assert isinstance(objs, list) and len(objs), "objs must be not empty list"
+        r = list()
+        [ r.extend([self.Slice(s, *args, **kwargs)]) for s in objs ]
+        self.recompute()
+        return r
+
     def wiresPoints(self, wires):
         "Returns FreeCAD vectorized list of wire points"
         points = list()
@@ -723,7 +764,7 @@ class Model(BaseTools):
 
     def __loft(self, faces, **kwargs):
         assert isinstance(faces, list) and len(faces) == 2, \
-            "TypeError: faces must be list with length 2"
+            "TypeError: faces must be type of list with length 2"
         return [ self.Loft(faces, **kwargs) ]
 
     def __extrude(self, surface, direction, height, **kwargs):
@@ -732,7 +773,7 @@ class Model(BaseTools):
 class Movement(Model):
 
     def rotate(self, objs, angle, zero, axis, times, cp=True, **kwargs):
-        assert isinstance(objs, list), "TypeError: objs must be list"
+        assert isinstance(objs, list), "TypeError: objs must be type of list"
         if not len(objs): return list()
         if times < 0:   # rotate backward feature
             times *= -1
@@ -746,7 +787,7 @@ class Movement(Model):
         return obj
 
     def move(self, objs, x, y, z, times, **kwargs):
-        assert isinstance(objs, list), "TypeError: objs must be list"
+        assert isinstance(objs, list), "TypeError: objs must be type of list"
         if not len(objs): return list()
         obj = list()
         for i in range(1, times+1):
@@ -784,6 +825,10 @@ class ObjectMovement(Movement):
     def pArrayZB(self, objs, n, **kwargs):
         angle = self.DETAIL_B
         return self.__pArrayZ(objs, angle, n, **kwargs)
+
+    def pToSliceZHB(self, objs, **kwargs):
+        angle = -self.DETAIL_B/2
+        return self.__pArrayZ(objs, angle, 1, **kwargs)
 
     def h1DropArray(self, obj, **kwargs):
         dim, amount = self.insH1L, self.insH1N
@@ -1015,22 +1060,18 @@ class Blocks(MutableMapping, RightPoints):
     # BEGIN: Concrete operators
 
     def appendWfr(self, name, l):
-        [ self._label(i, name) for i in l ]
         return self._appendRoot(__class__._wfr_, name, l)
 
     def extendWfr(self, name, l):
-        [ self._label(i, name) for i in l ]
         return self._extendRoot(__class__._wfr_, name, l)
 
     def extendDoubledWfr(self, name, i, l):
-        [ self._label(j, name) for j in l ]
         return self.extendDoubled(Blocks._wfr_, name, i, l)
 
     def getWfr(self, name):
         return self._getRoot(__class__._wfr_, name)
 
     def extendRoot(self, name, l):
-        [ self._label(i, name) for i in l ]
         return self._extendRoot(__class__._roo_, name, l)
 
     def getRoot(self, name):
@@ -1081,7 +1122,7 @@ class Blocks(MutableMapping, RightPoints):
 
     def __keyExtensionChecker(self, *args):
         for arg in args:
-            assert isinstance(arg, str), "TypeError: key is string"
+            assert isinstance(arg, str), "TypeError: key must be type of string"
 
     def __valueExtensionChecker(self, l):
         assert isinstance(l, list), "TypeError: types contains lists"
@@ -1092,7 +1133,7 @@ class Materials(list, ProductionCalc):
 
     def __init__(self, obj, width=0, height=0, thickn=0, RGB=None, **kwargs):
         assert width and height or thickn, "Undefined material dimensions"
-        assert isinstance(RGB, tuple),     "TypeError: color not tuple"
+        assert isinstance(RGB, tuple),     "TypeError: color must be type of tuple"
         assert len(RGB) == 3,              "TypeError: wrong RGB format"
         self.__frame = (width, height or thickn)
         obj.RGB = RGB
@@ -1135,7 +1176,7 @@ class WireFrame(ModelMovement, Blocks):
         wire1 = self.wire(points, vis=True) if set(zl) != {0} else list()
         wire2 = self.wire([(0, 0, 0), (0, -MTL.H or -MTL.T, 0)], vis=True)
         wires = self._markingArray(wire1, wire2)
-        return self.FCCompound(wires + wire1, __class__._mp_)
+        return self.FCCompound(wires + wire1)
 
     def _bottom(self, w, MTL, mtl, **kwargs):
         if not self.h1 or not self.cols: return list()
@@ -1217,7 +1258,7 @@ class WireFrame(ModelMovement, Blocks):
 class ModelLayer(WireFrame):
 
     def copy(self, o):
-        assert isinstance(o, list) and len(o), "TypeError: not a list object or zero lenght"
+        assert isinstance(o, list) and len(o), "TypeError: not a type of list or zero lenght"
         return self.rotate(o, 0, (0,0,0), (0,0,0), 1, cp=True) # just copy
 
     def _polygonCutTool(self, height, direction=(0,1,0), **kwargs):
@@ -1311,8 +1352,11 @@ class MonoMovement(ModelRoot):
         w = self.rotate(w, a, c, z, 1, cp=False)
         if self.dome: return w
         p1, p2 = self.oPOINTS[0][:2]
-        x = self.OR - (p1[0] - p2[0]) / 2
-        y = (p2[1] - p1[1]) / 2
+        if self.X_ORreduced:                                             # reduced after object __init__
+            x, y = self.reducedX_ORRootPoints()
+        else:
+            x = self.X_OR - (p1[0] - p2[0]) / 2
+            y = (p2[1] - p1[1]) / 2
         return self.xMirror(w, x=x, y=y, cp=False)
 
     def _horisonToolsRotation(self, t, bw=False, cp=False):
@@ -1323,9 +1367,9 @@ class MonoMovement(ModelRoot):
         B = -self.DETAIL_B if self.corn else self.DETAIL_B
         A = self.DETAIL_A
         n = n if mid else n-1
-        x = self.OR*2
+        x = (self.X_OR + self.X_ORreduced)*2
         x = x if self.dome else self.rightCathetusA_ByA(x, A)-self.MTL.T
-        z = self.h1
+        z = self.ZERO_Z
         dir_y = -1 if bw else 1
         return self.rotate(t, B*n, (x,0,z), (0,dir_y,0), 1, cp=cp)
 
@@ -1377,7 +1421,7 @@ class MonoWireFrame(MonoBlocks):
         if not self.rows or self.thor: return
         y = self.OR*2 if self.elongated and self.coupler else self.OR
         w = self.wire([
-            (0, y, self.h1), (0, -y, self.h1)
+            (0, y, self.ZERO_Z), (0, -y, self.ZERO_Z)
             ], vis=self.wfVisibility)
         self.toolWire = self._rotateMoveHiddenMonoWires(w)
         return self.toolWire
@@ -1389,7 +1433,7 @@ class MonoWireFrame(MonoBlocks):
         if self.less_rows or not self.quatro or not self.dome:
             return self._horizonPoly(ny, 0, mtl, MTL)
         w = self.wire([
-            (0, 1, self.h1+self.OR), (0, -1, self.h1+self.OR)
+            (0, 1, self.ZERO_Z+self.OR), (0, -1, self.ZERO_Z+self.OR)
             ], vis=self.wfVisibility)
         self.extendDoubledWfr(tp, 0, self._rotateMoveHiddenMonoWires(w))
         self._horizonPoly(ny, 0, mtl, MTL)
@@ -1770,7 +1814,7 @@ class FrameModelLayer(FrameWireFrame):
         return self._cutHPolysByTool(extruded, tool)
 
     def _extrudeVertical(self, edges, MTW):
-        assert isinstance(edges, list) and len(edges), "empty or wrong edges list"
+        assert isinstance(edges, list) and len(edges), "TypeError: empty or wrong type of edges"
         edges1, edges2 = edges
         s = self.surface(edges1, edges2)
         f = self.extrude(s, (0,1,0), MTW)
@@ -2372,6 +2416,26 @@ class FrameCompound(FrameExtend):
 #
 ###################################################################################
 
+def inform(msg=None):
+    if msg is None:
+        q = 'config'
+        msg =  '{0} is OFF{2}Set in {1}.py: {2}{2}'
+        msg += '# Extra options:{2}{0} = bool(True)'
+        return Qt().inform(msg.format(q.upper(), q, chr(10)))
+    return Qt().inform(msg)
+
+def assertionInform(tb):
+    conf = 'config'
+    syntax_msg = 'Syntax error in {0}.py{1}{1}'.format(conf, chr(10))
+    syntax_msg += 'Check all brackets and comma separators'
+    import traceback
+    tb_info = traceback.extract_tb(tb)
+    fn, line, func, text = tb_info[-1]
+    if conf in fn:
+        msg = 'Check {0}.py:{3}{3}Line: {1}{3}{2}'
+        return Qt().inform(msg.format(conf, line, text, chr(10)))
+    return Qt().inform(syntax_msg)
+
 def convert(MTL, lng, h1, Or, dets, thor, comp, p3d):
     """3D printer scale converter"""
     def s(val, scale): return val*scale
@@ -2416,19 +2480,27 @@ def compoundModel(obj, OBJ, EXTEND, COMPOUND, ROTATE, MOVE):
 
 main = __name__ == '__main__'
 
+t = time.time()
+
 if main:
     import importlib
 
-    import config
-    importlib.reload(config)
+    CONFIG = None
 
-    from config import DETAILS, OR, H1, LONG, THORUS, ROWS,    \
-            COLS, MONO, FRAME, EXTEND, COMPOUND, ROTATE, MOVE,  \
-            WIREFRAME, ROOT, SOLID, PRINT3D, CLEANUP, CONFIG
+    try:
+        import config
+        importlib.reload(config)
+
+        from config import DETAILS, OR, H1, LONG, THORUS, ROWS,   \
+                COLS, MONO, FRAME, EXTEND, COMPOUND, ROTATE, MOVE, \
+                WIREFRAME, ROOT, SOLID, PRINT3D, CLEANUP, CONFIG
+    except (AssertionError, SyntaxError):
+        import sys
+        assertionInform(sys.exc_info()[2])
+    finally:
+        if CONFIG is None: exit(0)                                       # To repair CONFIG before coding
 
 if main and CONFIG:
-
-    t = time.time()
 
     MTL = MONO or FRAME
 
@@ -2462,14 +2534,13 @@ if main and CONFIG:
 
     compoundModel( obj, OBJ, EXTEND, COMPOUND, ROTATE, MOVE )
 
+elif main and not CONFIG:
+    "Start coding here disabling CONFIG and TEST"
+    inform()
+
+try:
     t = time.time() - t
     m = int(t/60)
     s = t - m*60
     obj.cprint('Executed in: {0} minutes, {1:.1f} seconds'.format(m, s))
-
-elif main and not CONFIG:
-    "Start coding here disabling CONFIG and TEST"
-    l = '(!!!) CONFIG TURNED OFF (!!!)\n'
-    l += '-+-' * len(l) + '\n\n'
-    l += 'config.py: CONFIG = bool(False) ---> CONFIG = bool(True)'
-    MacroRoot().cprint(l)
+except: pass
