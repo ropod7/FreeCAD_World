@@ -23,7 +23,6 @@ from domeFCMacro import Root, FrameRoot, FrameDome, FrameCorner, \
         MonoRoot, MonoDome, MonoCorner, MonoDisc, MonoThorus,      \
         Compound, FrameCompound, MonoCompound, compoundModel
 
-
 # BEGIN: House Frame root creation system
 
 class HouseFrameRoot(FrameRoot):
@@ -320,8 +319,10 @@ class Cover(Root):
 
 class House(object):
 
-    def __init__(self, *args, FRAME=None, INSULANT=None, CONTOUR=None, COVER=None, **kwargs):
-        assert isinstance(FRAME, tuple), "TypeError: FRAME must be tuple"
+    def __init__(self, *args,
+            FRAME=None, INSULANT=None, CONTOUR=None, COVER=None,
+            **kwargs):
+        assert isinstance(FRAME, tuple), "TypeError: FRAME must be type of tuple"
         assert len(FRAME) == 2,     "Wrong tuple length. Must be 2 as (width, height)"
         assert FRAME[0] < FRAME[1], "FRAME width must be lower than FRAME height"
         assert INSULANT < FRAME[1], "INSULANT must be lower than FRAME height"
@@ -421,12 +422,22 @@ t = time.time()
 
 if main:
 
-    import config
-    importlib.reload(config)
+    from domeFCMacro import inform, assertionInform
 
-    from config import DETAILS, OR, H1, LONG, THORUS, ROWS, \
-            COLS, HOUSE, EXTEND, COMPOUND, ROTATE, MOVE,     \
-            WIREFRAME, ROOT, SOLID, PRINT3D, CLEANUP, CONFIG
+    CONFIG = None
+
+    try:
+        import config
+        importlib.reload(config)
+
+        from config import DETAILS, OR, H1, LONG, THORUS, ROWS, \
+                COLS, HOUSE, EXTEND, COMPOUND, ROTATE, MOVE,     \
+                WIREFRAME, ROOT, SOLID, PRINT3D, CLEANUP, CONFIG
+    except (AssertionError, SyntaxError):
+        import sys
+        assertionInform(sys.exc_info()[2])
+    finally:
+        if CONFIG is None: exit(0)                                       # To repair CONFIG before coding
 
 if main and CONFIG:
 
@@ -459,57 +470,7 @@ if main and CONFIG:
 
 elif main and not CONFIG:
     "Start coding here disabling CONFIG and TEST"
-    import random
-
-    rand = random.randrange
-    roots = [Root._dome_, Root._corn_, Root._disc_, Root._thor_]
-
-    DETAILS =  int(rand(4, 32))
-    ANGLE =    360/DETAILS
-    OR =       float(rand(500, 12000))
-    H1 =       float(rand(0, 6000))
-    LONG =     float(rand(0, 6000))
-    ROOT =     roots[rand(0, len(roots)-1)]
-    ROWS =     int(rand(0, int(DETAILS/4)))
-    ROWS =     [ROWS, int(DETAILS/4)][rand(0, 1)]
-    COLS =     int(rand(0, DETAILS))
-    FRAME_W =  int(rand(1, 100))
-    FRAME_H =  int(rand(FRAME_W, int(OR/2)))
-    INSULANT = float(rand(FRAME_W, FRAME_H))
-    CONTOUR =  float(rand(FRAME_W, FRAME_H))
-    COVER =    float(rand(FRAME_W, FRAME_H))
-
-    FRAME = tuple((FRAME_W, FRAME_H))
-
-    args = (LONG, H1, OR, DETAILS)
-
-    obj = House(
-        *args, root=ROOT, cleanup=True, FRAME=FRAME,
-        INSULANT=INSULANT, CONTOUR=CONTOUR, COVER=COVER
-        )
-
-    obj.wireFrame(ROWS, COLS, vis=False)
-
-    objs = obj.root(solid=True)
-
-    OBJ = HouseCompound
-
-    compoundModel( objs, OBJ, True, True, dict(DO=False), dict(DO=False) )
-
-    def tostr(obj, **kwargs):
-        l = '\n(!!!) CONFIG TURNED OFF (!!!)\n'
-        l += '-+-' * len(l) + '\n\n'
-        obj.cprint(l)
-        for k, v in kwargs.items():
-            obj.cprint(k + ': ' + str(v))
-        l += 'config.py: CONFIG = bool(False) ---> CONFIG = bool(True)'
-        obj.cprint(l)
-
-    tostr( obj,
-        DETAILS=DETAILS, ANGLE=ANGLE, OR=OR, H1=H1, LONG=LONG, ROOT=ROOT, \
-        ROWS=ROWS,COLS=COLS, FRAME_W=FRAME_W, FRAME_H=FRAME_H,             \
-        INSULANT=INSULANT,CONTOUR=CONTOUR, COVER=COVER                      \
-     )
+    inform()
 
 try:
     t = time.time() - t
