@@ -172,7 +172,8 @@ class TestHouseCompound(HouseCompound):
         objs = [ obj.pToSliceZHB(o, cp=True) for o in objs ]
         [ slc.extend(obj.xMirror(o, x=xOr, y=0, cp=False)) for o in objs ]
         sliced = obj.slice(slc)
-        x = obj.OR*2 if not obj.thor else obj.OR*4
+        r = obj.OR+obj.X_ORreduced
+        x = r*2 if not obj.thor else r*4
         obj.move(sliced, x,0,0, 1, cp=False)
 
 # END: Randomized test of House
