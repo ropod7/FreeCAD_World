@@ -27,19 +27,11 @@ importlib.reload(houseFCMacro)
 
 from houseFCMacro import House, HouseCompound
 
+RANDOM = True
+
 # BEGIN: Randomized test of House
 
-class TestHouse(House):
-
-    def wireFrame(self, rows, cols, **kwargs):
-        super().wireFrame(rows, cols, **kwargs)
-        self.rows, self.cols = rows, cols
-        obj = self.insulant
-        if not obj.long and not obj.h1 and not cols and not rows:
-            msg = 'EMPTY ASSET:{0}{0}ZEORES IN: H1, LONG, COLS, ROWS'
-            obj.inform(msg.format(chr(10)))
-
-class RandomHouseTest(TestHouse):
+class RandomHouseTest(House):
     _header_  = str('{0}RANDOM TEST:{0}').format(chr(10))
     _dts_min_ = int(4)      # min details
     _or_min_  = float(100)  # min radius
@@ -47,7 +39,7 @@ class RandomHouseTest(TestHouse):
     _frh_min_ = float(20)   # min frame height
     _roots_   = list([Root._dome_, Root._corn_, Root._disc_, Root._thor_])
 
-    def __init__(self, root=None,
+    def __init__(self, root=None, dome_probability=False,
             dts_max=int(32), or_max=float(9000), cover_max=float(1000),
             **kwargs):
 
@@ -65,6 +57,8 @@ class RandomHouseTest(TestHouse):
         h1  = self.__zero_float_asset(or_max*2)
         lng = self.__zero_float_asset(or_max*2)
         tp  = __class__._roots_[self.__index(0,3)] if root is None else root
+        if dome_probability and tp != __class__._roots_[0]:
+            tp = [tp, __class__._roots_[0]][self.__index(0,1)]
         self.__inform(DETAILS=dts, OR=Or, H1=h1, EXTENSION=lng, ROOT=tp)
 
         # END: Geometry
@@ -74,7 +68,7 @@ class RandomHouseTest(TestHouse):
         ext = ExtensionPoints(tp, lng, h1, Or, dts)
         inH = ext.insertionH1Units(h1, 0)[0]
         inL = ext.insertionLongUnits(lng, 0)[0]
-        mxH = inH if inH != 0 and inH < inL else inL if inL < Or else Or-1
+        mxH = inH if inH != 0 and inH < inL else inL if inL < Or else Or/1.2
         if mxH < __class__._frh_min_ or mxH > Or:                        # reinit if max height < min hight of frame
             return self.__init__(
             dts_max=dts_max, or_max=or_max, cover_max=cover_max,
@@ -94,7 +88,7 @@ class RandomHouseTest(TestHouse):
         if tp != __class__._roots_[3]:                                   # if not thor
             cvr = self.__float(__class__._w_t_min_, cover_max)
         else:
-            cvr = self.__float(__class__._w_t_min_, Or-(cnt*1.5))
+            cvr = self.__float(__class__._w_t_min_, Or/2-(cnt*1.5))
 
         # END: Materials
 
@@ -108,12 +102,22 @@ class RandomHouseTest(TestHouse):
         self.__inform(INS_H1=inH, INS_EXT=inL, header=False)
 
     def wireFrame(self,
-            zero_rows_probability=False, zero_cols_probability=False,    # to produce 0 probability if True
+            zero_probability=False, max_probability=False,    # to produce 0 probability if True
             **kwargs):
         details = self.cover.DETAILS
-        rows = self.__zero_probability(zero_rows_probability, int(details/4))
-        cols = self.__zero_probability(zero_cols_probability, details)
-        TestHouse.wireFrame(self, rows, cols, **kwargs)
+        if zero_probability and not max_probability:
+            rows = self.__zero_int_asset(int(details/4))
+            cols = self.__zero_int_asset(details)
+        elif not zero_probability and max_probability:
+            rows = self.__max_int_asset(int(details/4))
+            cols = self.__max_int_asset(details)
+        elif zero_probability and max_probability:
+            rows = self.__both_int_probablity(int(details/4))
+            cols = self.__both_int_probablity(details)
+        else:
+            rows = self.__int(0, int(details/4))
+            cols = self.__int(0, details)
+        House.wireFrame(self, rows, cols, **kwargs)
         self.__inform(ROWS=rows, COLUMNS=cols, header=False)
 
     def root(self, **kwargs):
@@ -123,7 +127,8 @@ class RandomHouseTest(TestHouse):
     def __inform(self, header=True, **kwargs):
         mr = MacroRoot()
         mr.cprint(__class__._header_) if header else mr.cprint(chr(10))
-        msg = '{}: {}'
+        br = (chr(123) + chr(125))
+        msg = br + chr(58) + chr(32) + br
         [ mr.cprint(msg.format(k, str(v))) for k,v in kwargs.items() ]
 
     def __int(self, start, stop):
@@ -149,10 +154,18 @@ class RandomHouseTest(TestHouse):
         obj = self.__float(0, obj_max)
         return [0, obj][self.__index(0, 1)]
 
-    def __zero_probability(self, probability, max_assets):
-        if probability:
-            return self.__zero_int_asset(max_assets)
-        return self.__int(0, max_assets)
+    def __max_int_asset(self, *args):
+        return int(self.__max_asset(*args))
+
+    def __max_asset(self, obj_max):
+        obj = self.__float(0, obj_max)
+        return [obj, obj_max][self.__index(0, 1)]
+
+    def __both_int_probablity(self, *args):
+        return int(self.__both_probability(*args))
+
+    def __both_probability(self, obj_max):
+        return [0, obj_max][self.__index(0, 1)]
 
     def range(self, start, stop):
         return randint(int(start), int(stop))
@@ -164,17 +177,16 @@ class TestHouseCompound(HouseCompound):
     def slicePolys(self):
         if not self.obj.rows or not self.obj.cols: return
         obj, slc = self.obj, list()
-        xOr = obj.X_OR*2 if obj.dome or obj.corn else obj.X_OR*4
-        hfr_hpl = self.hfr.getRoot(__class__._hplb_)
-        ins_hpl = self.ins.getRoot(__class__._hpl_)
-        cvr_hpl = self.cvr.getRoot(__class__._hpl_)
+        xOr = (obj.OR + obj.X_ORreduced*3)*2
+        xOr = xOr if obj.dome or obj.corn else xOr*2
+        hfr_hpl = obj.copy(self.hfr.getRoot(__class__._hplb_))
+        ins_hpl = obj.copy(self.ins.getRoot(__class__._hpl_))
+        cvr_hpl = obj.copy(self.cvr.getRoot(__class__._hpl_))
         objs = [ hfr_hpl, ins_hpl, cvr_hpl ]
-        objs = [ obj.pToSliceZHB(o, cp=True) for o in objs ]
+        objs = [ obj.pToSliceZHB(o, cp=False) for o in objs ]
         [ slc.extend(obj.xMirror(o, x=xOr, y=0, cp=False)) for o in objs ]
         sliced = obj.slice(slc)
-        r = obj.OR+obj.X_ORreduced
-        x = r*2 if not obj.thor else r*4
-        obj.move(sliced, x,0,0, 1, cp=False)
+        obj.move(sliced, xOr,0,0, 1, cp=False)
 
 # END: Randomized test of House
 
@@ -191,13 +203,11 @@ main = __name__ == '__main__'
 t = time.time()
 
 if main:
-    obj = RandomHouseTest(root=None, cleanup=True)
+    obj = RandomHouseTest(root=None, cleanup=True, dome_probability=True)
 
     OBJ = TestHouseCompound
 
-    obj.wireFrame(vis=False,
-        zero_rows_probability=False, zero_cols_probability=False
-        )
+    obj.wireFrame(vis=False, zero_probability=False, max_probability=True)                    # to produce 0 probability if True
 
     objs = obj.root(solid=True)
 
