@@ -86,9 +86,7 @@ class InsulantModelLayer(MonoModelLayer, InsulantWireFrame):
         blocks = super()._cutPolyPolys(e)
         return self.__cutPolyPolysByFrame(blocks)
 
-    def __cutPolyPolysByFrame(self, blocks):
-        pTool = self.house_frame.polygon_tool
-        b = self._cutHPolysByTool(blocks, pTool)
+    def __cutPolyPolysByFrame(self, b):
         tools = self.__getPolyPolyTools()
         obj, blocks = list(), list()
         if not self.less_rows and self.quatro and self.dome:
@@ -97,6 +95,7 @@ class InsulantModelLayer(MonoModelLayer, InsulantWireFrame):
         for i in range(len(tools)-1):
             obj.append(   self.cut( [b[i]], [tools[i]]   ))
             blocks.extend(self.cut( obj[i], [tools[i+1]] ))
+            self.updateGui(True)
         return blocks
 
     def __getPolyPolyTools(self):
@@ -158,6 +157,7 @@ class InsulantRoot(MonoRoot, InsulantModelLayer):
         except TypeError: return
         block = self._cutPolyH1ByFrame(b)
         block = self.h1Lift(block, self.frame[0]/2)
+        self.updateGui(True)
         return self.extendRoot(tp, block)
 
     def _buildExtH1(self):
@@ -171,10 +171,12 @@ class InsulantRoot(MonoRoot, InsulantModelLayer):
             expr = self.insH1N > 1
             cut = self._cutOnTopH1 if expr else self.cut
             block = cut(block, tool)
+        self.updateGui(True)
         return self.extendRoot(tp, block)
 
     def _buildPolyPoly(self):
-        blocks = super()._buildPolyPoly(cls=__class__)
+        rev = self.house_frame.MTL.W/2
+        blocks = super()._buildPolyPoly(cls=__class__, rev=rev)
 
     def _buildExtPoly(self):
         fWidth = self.frame[0]
@@ -182,6 +184,7 @@ class InsulantRoot(MonoRoot, InsulantModelLayer):
         except TypeError: return
         b = self.move(b, 0,-fWidth/2,0, 1, vis=True, cp=False)
         block = self._cutExtPoly(b)
+        self.updateGui(True)
         return self.extendRoot(tp, block)
 
     @property
@@ -389,7 +392,8 @@ class HouseCompound(HouseExtend):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def compound(self, **kwargs):
+    def compound(self, obj=None, **kwargs):
+        if obj is None: return
         abs_total = __class__._abs_totl_
         hfr_total = FrameCompound.compound(self, obj=self.hfr)
         ins_total = MonoCompound.compound(self, obj=self.ins)
