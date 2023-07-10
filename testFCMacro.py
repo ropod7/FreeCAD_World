@@ -57,7 +57,7 @@ class RandomHouseTest(House):
         h1  = self.__zero_float_asset(or_max*2)
         lng = self.__zero_float_asset(or_max*2)
         tp  = __class__._roots_[self.__index(0,3)] if root is None else root
-        if dome_probability and tp != __class__._roots_[0]:
+        if dome_probability or tp != __class__._roots_[0]:
             tp = [tp, __class__._roots_[0]][self.__index(0,1)]
         self.__inform(DETAILS=dts, OR=Or, H1=h1, EXTENSION=lng, ROOT=tp)
 
