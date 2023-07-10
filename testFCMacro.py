@@ -70,7 +70,7 @@ class RandomHouseTest(House):
         inL = ext.insertionLongUnits(lng, 0)[0]
         mxH = inH if inH != 0 and inH < inL else inL if inL < Or else Or/1.2
         if mxH < __class__._frh_min_ or mxH > Or:                        # reinit if max height < min hight of frame
-            return self.__init__(
+            return self.__init__(root=tp, dome_probability=dome_probability,
             dts_max=dts_max, or_max=or_max, cover_max=cover_max,
             **kwargs)
 
