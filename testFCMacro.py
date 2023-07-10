@@ -195,7 +195,9 @@ if main:
 
     OBJ = TestHouseCompound
 
-    obj.wireFrame(vis=False)
+    obj.wireFrame(vis=False,
+        zero_rows_probability=False, zero_cols_probability=False
+        )
 
     objs = obj.root(solid=True)
 
