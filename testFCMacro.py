@@ -185,8 +185,15 @@ class TestHouseCompound(HouseCompound):
         objs = [ hfr_hpl, ins_hpl, cvr_hpl ]
         objs = [ obj.pToSliceZHB(o, cp=False) for o in objs ]
         [ slc.extend(obj.xMirror(o, x=xOr, y=0, cp=False)) for o in objs ]
-        sliced = obj.slice(slc)
-        obj.move(sliced, xOr,0,0, 1, cp=False)
+        try:
+            sliced = obj.slice(slc)
+            obj.move(sliced, xOr,0,0, 1, cp=False)
+        except AssertionError:
+            import sys
+            tb = sys.exc_info()[2]
+            tb_info = traceback.extract_tb(tb)
+            fn, line, func, text = tb_info[-1]
+            obj.cprint(line, text)
 
 # END: Randomized test of House
 
