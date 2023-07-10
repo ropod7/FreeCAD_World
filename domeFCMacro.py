@@ -661,7 +661,6 @@ class BaseTools(FreeCADObject):
         slicer.Shape = self.__Compound(wires)
         slicer.purgeTouched()
         self.label = name
-        # self._setVisibility(obj, hideobj)
         return slicer
 
     def Rotate(self, objs, A, z, a, cp=True, vis=True):
@@ -957,13 +956,13 @@ class ModelMovement(ObjectMovement):
     def _rotatePolygonToCut(self, obj, placement):
         return self.rotate(obj, 90, placement, (1, 0, 0), 1, cp=False)
 
-    def _moveBtmHorBarTool(self, tool, MTL, mono=False):
+    def _moveBtmHorBarTool(self, tool, MTL, mono=False, cp=False):
         x = self.ZERO_X
         if self.dome:   x =   MTL.W   if not mono else 0
         elif self.corn: x =  -MTL.W   if not mono else 0
         elif self.disc: x =   MTL.W   if not mono else 0
         elif self.thor: x = x-MTL.H/2 if not mono else x-MTL.H
-        return self.move(tool, x,0,0, 1, cp=False)
+        return self.move(tool, x,0,0, 1, cp=cp)
 
 class Blocks(MutableMapping, RightPoints):
     """
@@ -1821,9 +1820,15 @@ class FrameModelLayer(FrameWireFrame):
         return f
 
     def _cutBtmHorBar(self, base, h1bar):
-        "In Thorus and Disc mode as tool works h1 bar of Corner"
+        "In Thorus mode as tool works h1 bar of Corner"
         tool = self.copy(h1bar)
-        tool = self._moveBtmHorBarTool(tool, self.MTL)
+        if not self.thor:
+            tools = tool
+            tools.extend(self._moveBtmHorBarTool(tool, self.MTL, cp=True))
+        else:
+            tools = self._moveBtmHorBarTool(tool, self.MTL, cp=False)
+            tools.extend(self.move(tools, -self.MTL.W/2,0,0, 1, cp=True))
+        tool = self.fusion(tools)
         return self._cutHPolysByTool(base, tool)
 
 class FrameRoot(FrameModelLayer):
