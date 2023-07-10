@@ -57,10 +57,13 @@ class Trigon(object):
         return Or * 2 * self.__cos(self.DETAIL_A)
 
     def reducedX_ORRootPoints(self):
-        angle = self.DETAIL_A - self.DETAIL_B/2
-        r = self.X_OR + self.X_ORreduced
-        x = self.rightCathetusA_ByA(r,   angle)
-        y = self.rightSideB_ByAA(x, angle)
+        try:
+            angle = self.DETAIL_A - self.DETAIL_B/2
+            r = self.X_OR + self.X_ORreduced
+            x = self.rightCathetusA_ByA(r,   angle)
+            y = self.rightSideB_ByAA(x, angle)
+        except ZeroDivisionError:                                        # in case of DETAILS == 4
+            x, y = 0, self.X_OR + self.X_ORreduced
         return x, y
 
     def __cos(self, c):
@@ -136,8 +139,8 @@ class Trigon(object):
     @property
     def fibo(self):
         f1, f2 = 0, 1
-        n = int(self.DETAILS/2)
-        for i in range(n):
+        n = self.DETAILS
+        for i in range(n+1):
             f1, f2 = f2, f1+f2
             if f1 >= n: break
         return f1 == n
@@ -200,9 +203,7 @@ class ThorusPoints(TwoPoints):
             root_x = self.oPOINTS[0][1][0]
             root_y = self.oPOINTS[0][1][1]
         else:                                                            # reduced after object __init__
-            try: root_x, root_y = self.reducedX_ORRootPoints()
-            except ZeroDivisionError:                                    # in case of DETAILS == 4
-                root_x, root_y = 0, self.X_OR + self.X_ORreduced
+            root_x, root_y = self.reducedX_ORRootPoints()
         root_x = root_x if self.corn else root_x*2 - (root_x - x)
         root_y = root_y if self.corn else root_y*2 - (root_y - y)
         return root_x, root_y
@@ -219,7 +220,7 @@ class ThorusPoints(TwoPoints):
         return (x, y, 0)
 
     def _h1Points(self, w, MTL):
-        disc_r = self.OR*3-self.X_ORreduced*2
+        disc_r = self.OR*3 - self.X_ORreduced*2
         if self.dome: return self.OR if not w else self.OR-MTL.T
         elif self.disc: return disc_r if not w else disc_r-MTL.T
         return self.X_OR if not w else self.X_OR+MTL.T
@@ -252,9 +253,11 @@ class ThorusPoints(TwoPoints):
     def __cornerYPoint(self, x, y, z, MTL):
         r = self.X_OR + self.X_ORreduced
         _, root_y = self.__fixedXYRoots(x, y, MTL)
-        if not y and z == self.ZERO_Z+r-z and z != r:
-            return root_y * 2
-        elif not y:
+        if not y and z == self.ZERO_Z+r-z and z != r and self.ZERO_Z>0:
+            self.cprint(z, r,  self.ZERO_Z+r-z, self.ZERO_Z)
+            # return root_y * 2
+        # elif not y:
+        if not y:
             return 0
         return y + (root_y - y)*2
 
@@ -461,22 +464,33 @@ class MacroRoot(Qt):
     def recompute(self):
         self.fcDoc.recompute()
 
+    def updateGui(self, sleep):
+        if sleep:
+            FreeCADGui.updateGui()
+            time.sleep(0.05)
+        return FreeCADGui.updateGui()
+
     def autogroup(self, obj):
         return Draft.autogroup(obj)
 
     def cprint(self, *args):
         l = len([*args])
-        if l > 1:
-            s = '{2}s; {0}{1}'.format(l, chr(10), chr(37))
-        else:
-            s = '{1}s{0}'.format(chr(10), chr(37))
-        args = tuple([ str(a) for a in [*args] ])
-        FreeCAD.Console.PrintMessage(s % args)
+        prefix = self.__prefix(*args, len_args=l)
+        s = tuple([ str(a) for a in [*args] ]) if l else tuple([chr(10)])
+        FreeCAD.Console.PrintMessage(prefix % s)
+
+    def __prefix(self, *args, len_args=None):
+        assert isinstance(len_args, int), "TypeError: lenght must be type of integer"
+        n, w, p, pc, s = chr(10), chr(32), chr(37), chr(59), chr(115)
+        br = (chr(123) + chr(125))
+        if len_args <= 1:
+            return (br + s + br).format(p, n)
+        return ((br*2) + pc + w).format(p, s) * len_args + br.format(n)
 
     def __convertDocName(self, name):
         assert isinstance(name, str), "TypeError: doc name must be type of str"
         ords = self.__ords()
-        for o in ords: name = name.replace(chr(o), '_')
+        for o in ords: name = name.replace(chr(o), chr(95))
         return name
 
     def __ords(self):
@@ -519,7 +533,8 @@ class FreeCADObject(MacroRoot):
     def Object(self, obj):
         return self.FCObject(obj)
 
-    def remove(self, obj):
+    def remove(self, obj, gui=False):
+        if gui: self.updateGui(gui)
         self.fcDoc.removeObject(obj)
 
     def cleanUp(self, cleanup=False):
@@ -619,15 +634,20 @@ class BaseTools(FreeCADObject):
         self._setShapeColor(f)
         return self._setVisibility(f, vis)
 
-    def Extrude(self, surface, direction, height, s=True, vis=True, d="Custom", name='Extrude'):
+    def Extrude(self, surface, direction, height,
+            rev=0, s=True, vis=True, d="Custom", taperA=0, taperARev=0,
+            name='Extrude'):
         e = self.AddObject('Part::Extrusion', name)
-        e.Base = surface
-        e.DirMode = d
-        e.Dir = self.vector(direction)
-        e.LengthFwd = height
-        e.Solid = self.solid
-        e.Symmetric = s
-        self.label = name
+        e.Base          = surface
+        e.DirMode       = d
+        e.Dir           = self.vector(direction)
+        e.LengthFwd     = height
+        e.LengthRev     = rev
+        e.Solid         = self.solid
+        e.Symmetric     = s
+        e.TaperAngle    = taperA
+        e.TaperAngleRev = taperARev
+        self.label      = name
         self._setShapeColor(e)
         self._setVisibility(surface, False)
         return self._setVisibility(e, vis)
@@ -663,16 +683,18 @@ class BaseTools(FreeCADObject):
         self.label = name
         return slicer
 
-    def Rotate(self, objs, A, z, a, cp=True, vis=True):
+    def Rotate(self, objs, A, z, a, cp=True, vis=True, gui=False):
         Draft.rotate(objs,A,self.vector(*z),axis=self.vector(*a),copy=cp)
         objs = self.roots[-len(objs):] if cp else objs
         [ self._setVisibility(o, vis) for o in objs ]
+        if gui: self.updateGui(gui)
         return objs
 
-    def Move(self, objs, x, y, z, cp=True, vis=True):
+    def Move(self, objs, x, y, z, cp=True, vis=True, gui=False):
         Draft.move(objs, self.vector(x, y, z), copy=cp)
         objs = self.roots[-len(objs):] if cp else objs
         [ self._setVisibility(o, vis) for o in objs ]
+        if gui: self.updateGui(gui)
         return objs
 
     def __Feature(self, name):
@@ -915,7 +937,7 @@ class ModelMovement(ObjectMovement):
     def __after(self, obj, i, **kwargs):
         angle, n, zero_y, a_y, mono = self.__prms(i, **kwargs)
         obj = self.rotate(obj, -angle*n+mono, zero_y, a_y, 1, cp=False)
-        return self.__turnToFromZero(obj, angle/2)
+        return self.__turnToFromZero(obj, angle/2, gui=True)
 
     def __prms(self, i):
         zero_y, a_y = self.__zeroYAxisToTurn()
@@ -934,9 +956,9 @@ class ModelMovement(ObjectMovement):
             mono += (self.DETAIL_A ** op) / (self.DETAILS - 3)
         return mono
 
-    def __turnToFromZero(self, obj, angle):
+    def __turnToFromZero(self, obj, angle, **kwargs):
         zero_z, a_z = (0, 0, self.ZERO_Z), (0,0,1)
-        return self.rotate(obj, angle, zero_z, a_z, 1, cp=False)
+        return self.rotate(obj, angle, zero_z, a_z, 1, cp=False, **kwargs)
 
     def __numberToTurn(self, ny):
         if self.dome and self.equal_rows and self.quatro:
@@ -1263,7 +1285,8 @@ class ModelLayer(WireFrame):
     def _polygonCutTool(self, height, direction=(0,1,0), **kwargs):
         placement = (self.ZERO_X, 0, self.ZERO_Z)
         sides = 20 if self.DETAILS < 20 else self.DETAILS
-        p = self.polygon(sides, self.OR+height*4, placement)
+        r = self.OR + self.X_ORreduced
+        p = self.polygon(sides, r+height*4, placement)
         p = self._rotatePolygonToCut(p, placement)
         h = height if self.MTL.FRAME else height * 2
         return self.extrude(p, direction, h, vis=False, **kwargs)
@@ -1290,7 +1313,8 @@ class ModelRoot(ModelLayer):
 
     def _build(self, solid=False):
         if self.get(Blocks._wfr_) is None:
-            self.cprint('|...| Zero definitions |...|')
+            msg = 'EMPTY ASSET:{0}{0}ZEORES IN: H1, LONG, COLS, ROWS'
+            self.inform(msg.format(chr(10)))
             return
         wfr = self.get(Blocks._wfr_)
         self.solid = solid
@@ -1451,13 +1475,13 @@ class MonoModelLayer(MonoWireFrame):
         f  = self.surface([wf[0]], [wf[1]])
         return self.extendFcs(tp, f)
 
-    def _createPolyFaces(self, tp):
+    def _createPolyFaces(self, tp, **kwargs):
         wf   = self.getWfr(tp)[0]
         ext  = self.extendFcs
         surf = self.surface
         rng  = range(len(wf)-1)
         [ ext(tp, surf( [wf[i]], [wf[i+1]] )) for i in rng ]
-        self.__buildTools(tp)
+        self.__buildTools(tp, **kwargs)
         return self.getFcs(tp)
 
     def _createExtPolyFaces(self, tp, cls=None):
@@ -1465,18 +1489,19 @@ class MonoModelLayer(MonoWireFrame):
         f = self.surface(w, f)
         return self.extendFcs(tp, f)
 
-    def __buildTools(self, tp):
+    def __buildTools(self, tp, **kwargs):
         f, tp = self.__createPolyToolFaces(tp)
-        self.__cuttingPolygons()
+        self.__cuttingPolygons(**kwargs)
         first, mid, last = self.__prepareTools(f)
         self.appendTool(tp, mid)
         return self.getTool(tp)
 
-    def __cuttingPolygons(self):
+    def __cuttingPolygons(self, rev=0):
         if self.thor: return
         t = self.MTL.T * 4 if self.DETAILS > 8 else self.MTL.T * 8
-        self.FrontPTool = self._polygonCutTool(t, s=False)
-        self.RearPTool  = self._polygonCutTool(t, direction=(0,-1,0), s=False)
+        cutTool = self._polygonCutTool
+        self.FrontPTool = cutTool(t, s=False, rev=rev)
+        self.RearPTool = cutTool(t, direction=(0,-1,0), rev=rev, s=False)
 
     def __createPolyToolFaces(self, tp):
         hpwf = self.getWfr(tp)
@@ -1523,7 +1548,7 @@ class MonoModelLayer(MonoWireFrame):
     def __toolsExtrude(self, f, btm=False):
         dir_z = -1 if btm else 1
         t = self.MTL.T
-        return self.extrude(f, (0,0,dir_z), t, s=False)
+        return self.extrude(f, (0,0,dir_z), t, s=False, vis=False)
 
     def _cutPolyPolys(self, e):
         tp = __class__._tool_ + self.pointSystem
@@ -1569,6 +1594,7 @@ class MonoRoot(MonoModelLayer):
         self._buildExtH1()
         self._buildPolyPoly()
         self._buildExtPoly()
+        return self.get(Blocks._roo_)
 
     def _buildPolyH1(self, cls=None, w=0):
         if not self.h1 or not self.cols: return
@@ -1580,6 +1606,7 @@ class MonoRoot(MonoModelLayer):
         assert ph1f is f, "Lists of faces not equal"
         block = self.extrude(f, (0,0,1), w or self.insH1L, s=False)
         if cls == __class__:
+            self.updateGui(True)
             return self.extendRoot(tp, block)
         return block, tp
 
@@ -1593,15 +1620,16 @@ class MonoRoot(MonoModelLayer):
         assert h1f is f, "Lists of faces not equal"
         block = self.extrude(f, (0,-1,0), self.insLongL-reduc, s=False)
         if cls == __class__:
+            self.updateGui(True)
             return self.extendRoot(tp, block)
         return block, tp
 
-    def _buildPolyPoly(self, cls=None):
+    def _buildPolyPoly(self, cls=None, rev=0):
         if not self.rows or not self.cols: return
         tp = __class__._hpl_
         cls = __class__ if cls is None else cls
         tpf  = self._getWfType(tp, cls=cls) # thor
-        hpf = self._createPolyFaces(tpf)
+        hpf = self._createPolyFaces(tpf, rev=rev)
         f = self.getFcs(tpf)
         assert hpf is f, "Lists of faces not equal"
         f = self._turnToExtrude(f)
@@ -1621,6 +1649,7 @@ class MonoRoot(MonoModelLayer):
         assert epf is f, "Lists of faces not equal"
         block = self.extrude(f, (0,-1,0), self.insLongL-reduc, s=False)
         if cls == __class__:
+            self.updateGui(True)
             return self.extendRoot(tp, block)
         return block, tp
 
@@ -1805,7 +1834,8 @@ class FrameModelLayer(FrameWireFrame):
         edges1, edges2 = self.getWfr(hplwf)
         edges1 = edges1[-n-1:]
         edges2 = edges2[-n-1:]
-        tool = self.polygon_tool = self._polygonCutTool(MTW)
+        # tool = self.polygon_tool = self._polygonCutTool(MTW)
+        tool = self._polygonCutTool(MTW)
         s = self.surface(edges1, edges2)
         s = self._turnToExtrude(s)
         e = self.extrude(s, (0,0,1), MTW)
@@ -1866,6 +1896,7 @@ class FrameRoot(FrameModelLayer):
         h1wfr = self._getWfType(WireFrame._h1_, cls=__class__)
         h1wfr = self.getWfr(h1wfr)
         h1 = self._extrudeVertical( h1wfr, self.MTL.W )
+        self.updateGui(True)
         return self.extendRoot(tp, h1)
 
     def __bottomHorizonBar(self, h1bar):
@@ -1875,6 +1906,7 @@ class FrameRoot(FrameModelLayer):
         s = self.surface(*self.getWfr(btmwf))
         e = self.extrude(s, (0, 0, 1), self.MTL.H, s=False)
         bb = self._cutBtmHorBar(e, h1bar)
+        self.updateGui(True)
         return self.extendRoot(tp, bb)
 
     def __horizonPolyBars(self, n):
@@ -1890,6 +1922,7 @@ class FrameRoot(FrameModelLayer):
         vplwf = self._getWfType(WireFrame._vpl_,  cls=__class__)
         if not len(self.getWfr(vplwf)): return self.extendRoot(tp, list())
         v = self._extrudeVertical( self.getWfr(vplwf), self.MTL.W )
+        self.updateGui(True)
         return self.extendRoot(tp, v)
 
     def __longHorisonBar(self):
@@ -1901,6 +1934,7 @@ class FrameRoot(FrameModelLayer):
         b = self._alignHorisonLongBar(b, self.MTL.W)
         self.extendRoot(tp, b)
         self.__shortHorisonBar()
+        self.updateGui(True)
 
     def __shortHorisonBar(self):
         tp = __class__._shte_
@@ -1910,6 +1944,7 @@ class FrameRoot(FrameModelLayer):
         s = self.surface(*self.getWfr(shtwf))
         b = self.extrude(s, (1,0,0), self.MTL.W)
         b = self._alignHorisonShortBar(b, self.MTL.W)
+        self.updateGui(True)
         return self.extendRoot(tp, b)
 
 class FrameDome(FrameRoot):
@@ -2089,7 +2124,7 @@ class Extend(object):
         objs = list()
         allp, nms = __class__._allp_, [__class__._vert_,__class__._hori_]
         [ objs.extend(obj.getPlg(n).copy()) for n in nms ]
-        obj.extendPlg(allp, obj.pArrayZB(objs, n).copy())
+        obj.extendPlg(allp, obj.pArrayZB(objs, n, gui=True).copy())
 
     # BEGIN: Concrete horison long array system
 
@@ -2117,15 +2152,15 @@ class Extend(object):
         [ extm(t, parts.copy()) for t in tps ]
 
     def _rotate(self, objs, angle, center, axis, n, copy):
-        return self.obj.rotate(objs, angle, center, axis, n, cp=copy)
+        return self.obj.rotate(objs, angle, center, axis, n, cp=copy, gui=True)
 
     def _move(self, objs, x,y,z, n, copy):
-        return self.obj.move(objs, x,y,z, n, cp=copy)
+        return self.obj.move(objs, x,y,z, n, cp=copy, gui=True)
 
     def __dropH1s(self, obj, todrp, tps, extm, **kwargs):
         "array mechanism to fill up h1 by horisons"
         if not self.h1 or obj.insH1N == 1: return
-        drop = obj.h1DropArray(todrp, **kwargs).copy()
+        drop = obj.h1DropArray(todrp, gui=True, **kwargs).copy()
         [ extm(t, drop) for t in tps ]
         return drop
 
@@ -2133,7 +2168,7 @@ class Extend(object):
         "array mechanism to fill up h1 by horisons"
         if not self.h1: return #[ extm(t, []) for t in tps ]
         if obj.insH1N > 1:
-            lift = obj.h1LiftArray(tolft, **kwargs).copy()
+            lift = obj.h1LiftArray(tolft, gui=True, **kwargs).copy()
             lift = tolft + lift
         else:
             lift = tolft
@@ -2149,7 +2184,7 @@ class Extend(object):
             [ extm(t, torev) for t in tps ]
             return torev
         n = (self.rows-1)*-1 if obj.disc else self.rows-1
-        vpl = obj.pArrayYB(torev, n)
+        vpl = obj.pArrayYB(torev, n, gui=True)
         toall = torev + vpl.copy()
         [ extm(t, toall.copy()) for t in tps ]
         return toall.copy()
@@ -2158,7 +2193,7 @@ class Extend(object):
         "thorus mirroring mechanism"
         if not obj.thor or not len(tomove): return
         r = 2 if self.rows < obj.DETAILS/4 else 1
-        moved = obj.xMirror(tomove, **kwargs).copy()
+        moved = obj.xMirror(tomove, gui=True, **kwargs).copy()
         [ extm(t, moved) for t in tps ]
         return moved
 
@@ -2174,7 +2209,7 @@ class Extend(object):
         allt, tp = tps
         geto, exto = meths
         toarr = geto(tp).copy()
-        made = arr(toarr)
+        made = arr(toarr, gui=True)
         [ exto(t, made.copy()) for t in tps ]
         return made
 
@@ -2223,7 +2258,7 @@ class Compound(Extend):
         times = circ / (cols*B) if cols else 2
         angle = circ / times
         times = int(times-1)
-        comp = obj.compArray(total, angle, times)
+        comp = obj.compArray(total, angle, times, gui=True)
         return obj.extend(totl, comp)
 
     def _collectTotal(self, obj):
@@ -2541,6 +2576,43 @@ if main and CONFIG:
 
 elif main and not CONFIG:
     "Start coding here disabling CONFIG and TEST"
+    class FibonacciTrigon(Trigon):
+
+        def __init__(self, *args):
+            super().__init__(*args)
+            if not self.fibo:
+                raise TypeError
+
+    class FibonacciMonoRoot(MonoRoot, FibonacciTrigon):
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+
+    class FibonacciMonoDome(MonoDome, FibonacciMonoRoot):
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+
+    class Fibonacci(Root):
+        _roots_ = { Root._dome_ : FibonacciMonoDome }
+
+        def __new__(cls, *args, root=None, **kwargs):
+            assert root in __class__._roots_.keys(), "TypeError: unknown type of building"
+            clss = __class__._roots_.get(root)
+            return super().__new__(cls, clss, *args, **kwargs)
+
+    def fibonacci_range(at_least, maximum):
+        f1, f2 = 0, 1
+        n = maximum
+        rng = list()
+        for i in range(n):
+            f1, f2 = f2, f1+f2
+            if f1 >= at_least: rng.append(f1)
+            if f1 >= maximum:  break
+        return rng
+
+    rng = fibonacci_range(3, 20000)
+
     inform()
 
 try:
