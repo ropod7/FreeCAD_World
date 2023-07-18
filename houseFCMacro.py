@@ -18,6 +18,8 @@ import inspect
 import domeFCMacro
 importlib.reload(domeFCMacro)
 
+from domeFCMacro import Blocks, Materials, ModelRoot, MonoGraduatedArc
+
 from domeFCMacro import Root, FrameRoot, FrameDome, FrameCorner, \
         FrameDisc, FrameThorus, MonoWireFrame, MonoModelLayer,    \
         MonoRoot, MonoDome, MonoCorner, MonoDisc, MonoThorus,      \
@@ -67,7 +69,27 @@ class HouseFrame(Root):
 
 # BEGIN: Insulant root creation system
 
-class InsulantWireFrame(MonoWireFrame):
+class InsulantMaterials(Materials):
+
+    def __init__(self, *args, frame_w=None,  **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__insulant = True
+        self.__frame_w = frame_w
+
+    @property
+    def INSULANT(self):
+        return self.__insulant
+
+    @property
+    def FRAME_W(self):
+        return self.__frame_w
+
+class InsulantModelRoot(ModelRoot):
+
+    def _setMaterial(self, **kwargs):
+        self.MTL = InsulantMaterials(self, **kwargs)
+
+class InsulantWireFrame(MonoWireFrame, InsulantModelRoot):
     _mtl_ = str('insulant')
 
     def _createMonoWireFrame(self, *args, **kwargs):
@@ -81,43 +103,6 @@ class InsulantModelLayer(MonoModelLayer, InsulantWireFrame):
         h1b = self.copy( frame.getRoot(FrameRoot._h1ba_) )
         h1b = self._moveBtmHorBarTool(h1b, frame.MTL, mono=True)
         return self._cutHPolysByTool(block, h1b)
-
-    def _cutPolyPolys(self, e):
-        blocks = super()._cutPolyPolys(e)
-        return self.__cutPolyPolysByFrame(blocks)
-
-    def __cutPolyPolysByFrame(self, b):
-        tools = self.__getPolyPolyTools()
-        obj, blocks = list(), list()
-        if not self.less_rows and self.quatro and self.dome:
-            blocks.extend(self.cut( [b[0]], [tools[0]] ))
-            b = b[1:]
-        for i in range(len(tools)-1):
-            obj.append(   self.cut( [b[i]], [tools[i]]   ))
-            blocks.extend(self.cut( obj[i], [tools[i+1]] ))
-            self.updateGui(True)
-        return blocks
-
-    def __getPolyPolyTools(self):
-        frame = self.house_frame
-        allb = frame.getRoot(FrameRoot._hplb_)
-        l = int(len(allb)/2)
-        corn_and_thor = self.corn and frame.thor
-        corn_less_rows = corn_and_thor and self.less_rows
-        corn_not_quatro = corn_and_thor and not self.quatro
-        thor_and_thor = self.thor and frame.thor
-        abs_quatro = not self.less_rows and self.quatro
-        if corn_not_quatro or corn_less_rows:
-            bars = allb[:l]
-        elif corn_and_thor:
-            bars = allb[:l+1]
-        elif thor_and_thor and abs_quatro:
-            bars = [ allb[0] ]
-            bars.extend(allb[l+1:])
-        elif thor_and_thor:
-            bars = allb[l:]
-        else: bars = allb
-        return self.copy(bars.copy())
 
     def _cutExtPoly(self, block):
         frame = self.house_frame
@@ -142,26 +127,32 @@ class InsulantModelLayer(MonoModelLayer, InsulantWireFrame):
 class InsulantRoot(MonoRoot, InsulantModelLayer):
     _mtrl_ = InsulantWireFrame._mtl_
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, RGB=(1.0,1.0,1.0), **kwargs)
+    def __init__(self, tp, thickn, *args,                                # absolute self __init__
+            frame_w=None, RGB=(1.0,1.0,1.0),
+            **kwargs):
+        assert thickn,  "No Insulant thickness defined"
+        assert frame_w, "No Frame width defined"
+        self._setMaterial(thickn=thickn, RGB=RGB, frame_w=frame_w, **kwargs)
+        MonoGraduatedArc.__init__(self, tp, *args, **kwargs)
 
     def wireFrame(self, *args, **kwargs):
-        super().wireFrame(*args, marking=True, **kwargs)
+        mnp = -(self.MTL.FRAME_W/(self.DETAILS/2)) if self.corn else 0   # additional move just for corner
+        super().wireFrame(*args, marking=True, manipulator=mnp, **kwargs)
 
     def _build(self, **kwargs):
         super()._build(**kwargs)
 
     def _buildPolyH1(self):
-        w = self.insH1L-self.frame[0]
+        w = self.insH1L-self.MTL.FRAME_W
         try: b, tp = super()._buildPolyH1(cls=__class__, w=w)
         except TypeError: return
         block = self._cutPolyH1ByFrame(b)
-        block = self.h1Lift(block, self.frame[0]/2)
-        self.updateGui(True)
+        block = self.h1Lift(block, self.MTL.FRAME_W/2)
+        self.updateGui(True, fitV=True)
         return self.extendRoot(tp, block)
 
     def _buildExtH1(self):
-        fWidth = self.frame[0]
+        fWidth = self.MTL.FRAME_W
         try: b, tp = super()._buildExtH1(cls=__class__, reduc=fWidth)
         except TypeError: return
         block = self.move(b, 0,-fWidth/2,0, 1, vis=True, cp=False)
@@ -171,20 +162,20 @@ class InsulantRoot(MonoRoot, InsulantModelLayer):
             expr = self.insH1N > 1
             cut = self._cutOnTopH1 if expr else self.cut
             block = cut(block, tool)
-        self.updateGui(True)
+        self.updateGui(True, fitV=True)
         return self.extendRoot(tp, block)
 
     def _buildPolyPoly(self):
-        rev = self.house_frame.MTL.W/2
+        rev = self.MTL.FRAME_W/2
         blocks = super()._buildPolyPoly(cls=__class__, rev=rev)
 
     def _buildExtPoly(self):
-        fWidth = self.frame[0]
+        fWidth = self.MTL.FRAME_W
         try: b, tp = super()._buildExtPoly(cls=__class__, reduc=fWidth)
         except TypeError: return
         b = self.move(b, 0,-fWidth/2,0, 1, vis=True, cp=False)
         block = self._cutExtPoly(b)
-        self.updateGui(True)
+        self.updateGui(True, fitV=True)
         return self.extendRoot(tp, block)
 
     @property
@@ -224,6 +215,22 @@ class InsulantThorus(MonoThorus, InsulantRoot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def wireFrame(self, *args, **kwargs):
+        self.__cornWireFrame(*args, **kwargs)
+        self.__thorWireFrame(*args, **kwargs)
+        return self.get(Blocks._wfr_)
+
+    def __cornWireFrame(self, *args, **kwargs):
+        self.pointSystem = Root._corn_
+        return self.__wireFrame(*args, **kwargs)
+
+    def __thorWireFrame(self, *args, **kwargs):
+        self.pointSystem = Root._thor_
+        return self.__wireFrame(*args, **kwargs)
+
+    def __wireFrame(self, *args, **kwargs):
+        return InsulantRoot.wireFrame(self, *args, **kwargs)
+
 class Insulant(Root):
     _roots_ = {
         Root._dome_ : InsulantDome,
@@ -235,27 +242,8 @@ class Insulant(Root):
     def __new__(cls, frame, insulant, lng, h1, Or, dets, root=None, OUTSCRIBE=False, **kwargs):
         assert root in __class__._roots_.keys(), "TypeError: unknown type of building"
         clss = __class__._roots_.get(root)
-        obj = super().__new__(cls, clss, insulant, lng, h1, Or, dets, **kwargs)
-        cls.setOR(obj, Or, frame[0], root, OUTSCRIBE)
-        obj.frame = frame
+        obj = super().__new__(cls, clss, insulant, lng, h1, Or, dets, frame_w=frame[0], **kwargs)
         return obj
-
-    @classmethod
-    def setOR(cls, obj, Or, matW, root, OUTSCRIBE):
-        if root == Root._dome_ or root == Root._disc_: return
-        obj.X_ORreduced = -obj.rightSideB_ByA(matW/1.5, obj.DETAIL_A)
-
-    @property
-    def frame(self):
-        try: return self.__frame_
-        except AttributeError:
-            self.__frame_ = tuple()
-        return self.__frame_
-
-    @frame.setter
-    def frame(self, frame):
-        self.__frame_ = frame
-        return self.__frame_
 
 # END: Insulant root creation system
 
@@ -324,15 +312,15 @@ class House(object):
 
     def __init__(self, *args,
             FRAME=None, INSULANT=None, CONTOUR=None, COVER=None,
-            **kwargs):
+            cleanup=None, **kwargs):
         assert isinstance(FRAME, tuple), "TypeError: FRAME must be type of tuple"
         assert len(FRAME) == 2,     "Wrong tuple length. Must be 2 as (width, height)"
         assert FRAME[0] < FRAME[1], "FRAME width must be lower than FRAME height"
         assert INSULANT < FRAME[1], "INSULANT must be lower than FRAME height"
         assert CONTOUR >= 0,        "CONTOUR must be higher than 0 or 0"
-        self.house_frame = HouseFrame(*(*FRAME, *args), **kwargs)
-        self.insulant = Insulant(FRAME, INSULANT, *args, **kwargs)
-        self.cover = Cover(COVER, CONTOUR, *args, **kwargs) if COVER else None
+        self.house_frame = HouseFrame(*(*FRAME, *args), cleanup=cleanup, **kwargs)
+        self.insulant = Insulant(FRAME, INSULANT, *args, cleanup=False, **kwargs)
+        self.cover = Cover(COVER, CONTOUR, *args, cleanup=False, **kwargs) if COVER else None
         self.insulant.house_frame = self.house_frame                     #
         del self.house_frame                                             # reduce amount of objects
 
@@ -367,6 +355,7 @@ class HouseExtend(FrameCompound, MonoCompound):
         self.__ins_ = tmp.obj
         tmp = MonoCompound(cover, **kwargs) if cover else None
         self.__cvr_ = tmp.obj if cover else None
+        self.__cols = tmp.cols
         del tmp
 
     @property
@@ -385,7 +374,13 @@ class HouseExtend(FrameCompound, MonoCompound):
     def cvr(self):
         return self.__cvr_
 
+    @property
+    def cols(self):
+        return self.__cols
+
 class HouseCompound(HouseExtend):
+    _hplb_ = FrameRoot._hplb_
+    _hpl_  = MonoRoot._hpl_
     _totl_ = Compound._totl_
     _abs_totl_ = str('absolute_') + _totl_
 
@@ -400,6 +395,19 @@ class HouseCompound(HouseExtend):
         cvr_total = MonoCompound.compound(self, obj=self.cvr) if self.cvr else None
         totals = [ hfr_total, ins_total, cvr_total ]
         [ self.obj.extend(abs_total, t) for t in totals if t is not None ]
+
+    def slicePolys(self, hideobj=True):
+        if not self.obj.rows or not self.obj.cols: return
+        obj, slc = self.obj, list()
+        xOr = (obj.OR + obj.X_ORreduced*3)*2
+        xOr = xOr if obj.dome or obj.corn else xOr*2
+        hfr_hpl = obj.copy(self.hfr.getRoot(__class__._hplb_))
+        ins_hpl = obj.copy(self.ins.getRoot(__class__._hpl_))
+        cvr_hpl = obj.copy(self.cvr.getRoot(__class__._hpl_)) if self.cvr else None
+        objs = [ hfr_hpl, ins_hpl, cvr_hpl ]
+        objs = [ obj.pToSliceZHB(o, cp=False) for o in objs if o is not None ]
+        [ slc.extend(obj.move(o, xOr,0,0, 1, cp=False, fitV=True)) for o in objs ]
+        return obj.slice(slc)
 
     def rotate(self, *args):
         objs = self.obj.get(__class__._abs_totl_)
@@ -434,9 +442,9 @@ if main:
         import config
         importlib.reload(config)
 
-        from config import DETAILS, OR, H1, LONG, THORUS, ROWS, \
-                COLS, HOUSE, EXTEND, COMPOUND, ROTATE, MOVE,     \
-                WIREFRAME, ROOT, SOLID, PRINT3D, CLEANUP, CONFIG
+        from config import DETAILS, OR, H1, LONG, THORUS, ROWS, COLS,   \
+                HOUSE, EXTEND, COMPOUND, SLICE, ROTATE, MOVE, WIREFRAME, \
+                ROOT, SOLID, PRINT3D, CLEANUP, GUI_CLEANUP, CONFIG
     except (AssertionError, SyntaxError):
         import sys
         assertionInform(sys.exc_info()[2])
@@ -445,23 +453,24 @@ if main:
 
 if main and CONFIG:
 
-    args = (LONG, H1, OR, DETAILS)
+    args   = (LONG, H1, OR, DETAILS)
+    kwargs = dict(cleanup=CLEANUP, gui=GUI_CLEANUP)
 
     if       THORUS.get('CORNER') and not THORUS.get('DISC'):
         root = Root._corn_
-        obj = House(*args, root=root, cleanup=CLEANUP, **HOUSE)
+        obj = House(*args, root=root, **kwargs, **HOUSE)
 
     elif not THORUS.get('CORNER') and     THORUS.get('DISC'):
         root = Root._disc_
-        obj = House(*args, root=root, cleanup=CLEANUP, **HOUSE)
+        obj = House(*args, root=root, **kwargs, **HOUSE)
 
     elif     THORUS.get('CORNER') and     THORUS.get('DISC'):
         root = Root._thor_
-        obj = House(*args, root=root, cleanup=CLEANUP, **HOUSE)
+        obj = House(*args, root=root, **kwargs, **HOUSE)
 
     else:
         root = Root._dome_
-        obj = House(*args, root=root, cleanup=CLEANUP, **HOUSE)
+        obj = House(*args, root=root, **kwargs, **HOUSE)
 
     OBJ = HouseCompound
 
@@ -470,7 +479,9 @@ if main and CONFIG:
 
     objs = obj.root(solid=SOLID)
 
-    compoundModel( objs, OBJ, EXTEND, COMPOUND, ROTATE, MOVE )
+    comp = compoundModel( objs, OBJ, EXTEND, COMPOUND, ROTATE, MOVE )
+
+    if EXTEND and SLICE: comp.slicePolys()
 
 elif main and not CONFIG:
     "Start coding here disabling CONFIG and TEST"
