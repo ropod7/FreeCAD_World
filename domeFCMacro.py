@@ -329,7 +329,7 @@ class GraduatedArc(TwoPoints):
 
     def sequenceByGraduatedArc(self, sequence):
         """
-            To work with surface xPOINTS;
+            To work with surface zPOINTS;
         """
         assert isinstance(sequence, list), "TypeError: sequence must be type of list"
         realB = 0
