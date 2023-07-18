@@ -27,8 +27,6 @@ importlib.reload(houseFCMacro)
 
 from houseFCMacro import House, HouseCompound
 
-RANDOM = True
-
 # BEGIN: Randomized test of House
 
 class RandomHouseTest(House):
@@ -39,14 +37,14 @@ class RandomHouseTest(House):
     _frh_min_ = float(20)   # min frame height
     _roots_   = list([Root._dome_, Root._corn_, Root._disc_, Root._thor_])
 
-    def __init__(self, root=None, dome_probability=False,
-            dts_max=int(32), or_max=float(9000), cover_max=float(1000),
+    def __init__(self, root=None, cover=False, dome_probability=False,
+            dts_max=int(32), or_max=float(5000), cover_max=float(1000),
             **kwargs):
 
         assert isinstance(dts_max, int),        "TypeError:  max amount of details must be type of integer"
         assert dts_max >= 32 and dts_max <= 64, "ValueError: max amount of details not in range"
         assert isinstance(or_max, float),       "TypeError:  max OR of assets must be type of float"
-        assert or_max >= 9000,                  "ValueError: max OR of assets not in range"
+        assert or_max >= 5000,                  "ValueError: max OR of assets not in range"
         assert isinstance(cover_max, float),    "TypeError:  max thickness of cover must be type of float"
         assert cover_max >= 1000,               "ValueError: max thickness of cover not in range"
 
@@ -70,9 +68,10 @@ class RandomHouseTest(House):
         inL = ext.insertionLongUnits(lng, 0)[0]
         mxH = inH if inH != 0 and inH < inL else inL if inL < Or else Or/1.2
         if mxH < __class__._frh_min_ or mxH > Or:                        # reinit if max height < min hight of frame
-            return self.__init__(root=tp, dome_probability=dome_probability,
-            dts_max=dts_max, or_max=or_max, cover_max=cover_max,
-            **kwargs)
+            return self.__init__(root=tp, cover=cover,
+                dome_probability=dome_probability,
+                dts_max=dts_max, or_max=or_max, cover_max=cover_max,
+                **kwargs)
 
         # END: insertion units
 
@@ -85,7 +84,9 @@ class RandomHouseTest(House):
 
         ins = self.__float(__class__._w_t_min_, frH/1.5)
         cnt = self.__float(0, Or/3)
-        if tp != __class__._roots_[3]:                                   # if not thor
+        if not cover:
+            cvr = None
+        elif tp != __class__._roots_[3]:                                 # if not thor
             cvr = self.__float(__class__._w_t_min_, cover_max)
         else:
             cvr = self.__float(__class__._w_t_min_, Or/2-(cnt*1.5))
@@ -102,9 +103,9 @@ class RandomHouseTest(House):
         self.__inform(INS_H1=inH, INS_EXT=inL, header=False)
 
     def wireFrame(self,
-            zero_probability=False, max_probability=False,    # to produce 0 probability if True
+            zero_probability=False, max_probability=False,               # to produce 0 or max probability if True
             **kwargs):
-        details = self.cover.DETAILS
+        details = self.insulant.DETAILS
         if zero_probability and not max_probability:
             rows = self.__zero_int_asset(int(details/4))
             cols = self.__zero_int_asset(details)
@@ -170,31 +171,6 @@ class RandomHouseTest(House):
     def range(self, start, stop):
         return randint(int(start), int(stop))
 
-class TestHouseCompound(HouseCompound):
-    _hplb_ = FrameRoot._hplb_
-    _hpl_  = MonoRoot._hpl_
-
-    def slicePolys(self):
-        if not self.obj.rows or not self.obj.cols: return
-        obj, slc = self.obj, list()
-        xOr = (obj.OR + obj.X_ORreduced*3)*2
-        xOr = xOr if obj.dome or obj.corn else xOr*2
-        hfr_hpl = obj.copy(self.hfr.getRoot(__class__._hplb_))
-        ins_hpl = obj.copy(self.ins.getRoot(__class__._hpl_))
-        cvr_hpl = obj.copy(self.cvr.getRoot(__class__._hpl_))
-        objs = [ hfr_hpl, ins_hpl, cvr_hpl ]
-        objs = [ obj.pToSliceZHB(o, cp=False) for o in objs ]
-        [ slc.extend(obj.xMirror(o, x=xOr, y=0, cp=False)) for o in objs ]
-        try:
-            sliced = obj.slice(slc)
-            obj.move(sliced, xOr,0,0, 1, cp=False)
-        except AssertionError:
-            import sys
-            tb = sys.exc_info()[2]
-            tb_info = traceback.extract_tb(tb)
-            fn, line, func, text = tb_info[-1]
-            obj.cprint(line, text)
-
 # END: Randomized test of House
 
 # BEGIN: Coding
@@ -210,15 +186,16 @@ main = __name__ == '__main__'
 t = time.time()
 
 if main:
-    obj = RandomHouseTest(root=None, cleanup=True, dome_probability=True)
+    obj = RandomHouseTest(root=None, cover=True, dome_probability=True,
+            cleanup=True, gui=False)
 
-    OBJ = TestHouseCompound
+    OBJ = HouseCompound
 
-    obj.wireFrame(vis=False, zero_probability=False, max_probability=True)                    # to produce 0 probability if True
+    obj.wireFrame(vis=False, zero_probability=False, max_probability=True) # to produce 0 or max probability if True
 
     objs = obj.root(solid=True)
 
-    comp = compoundModel( objs, OBJ, True, True, dict(DO=False), dict(DO=False) )
+    comp = compoundModel( objs, OBJ, True, False, dict(DO=False), dict(DO=False) )
 
     comp.slicePolys()
 
