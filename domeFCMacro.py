@@ -337,10 +337,10 @@ class GraduatedArc(TwoPoints):
         for x, y in sequence[:-1]:                                       # returns for each:
             next_i = sequence.index([x, y])+1                            #                                  +
             next_x, next_y = sequence[next_i]                            #                                  |\
-            next_c = self.rightHypothenuse_ByAB(next_x, next_y)          #                                 a| \
+            next_c = self.rightHypothenuse_ByAB(next_x, next_y)          #                                a | \
             B = (self.angleB_ByAB(next_x, next_y) - realB)               #                                  |  \
-            a = self.rightSideB_ByA(next_c, 90-B)                        # .________________________________|_b_\
-            x = self.rightHypothenuse_ByAB(x, y)                         # B                  x
+            a = self.rightSideB_ByA(next_c, 90-B)                        # .∠B _____________________________|_b_\
+            x = self.rightHypothenuse_ByAB(x, y)                         # |<---------------- x ---------------->|
             b = x - self.rightCathetusA_ByBA(a, 90-B)
             realB += B
             points.append([ B, x, a, b ])
@@ -592,9 +592,6 @@ class MacroRoot(Qt):
     _ortho_ = str('Std_OrthographicCamera')
     _persp_ = str('Std_PerspectiveCamera')
 
-    def __init__(self):
-        self.pl = FreeCAD.Placement()
-
     def newDoc(self, name):
         name = self.__convertDocName(name)
         name = FreeCAD.newDocument(name).Name
@@ -736,8 +733,8 @@ class FreeCADObject(MacroRoot):
 
     def __init__(self, **kwargs):
         "Receives CLEANUP definition"
-        super().__init__()
         self.cleanUp(**kwargs)
+        # self.pl = FreeCAD.Placement()
 
     def AddObject(self, feature, name):
         return self.fcDoc.addObject(feature, name)
@@ -773,6 +770,13 @@ class FreeCADObject(MacroRoot):
         if self.label == self.name:
             self.label = self.label
         return self.label
+
+    @property
+    def pl(self):
+        try: return self.__pl
+        except AttributeError:
+            self.__pl = FreeCAD.Placement()
+        return self.__pl
 
     @property
     def name(self):
@@ -916,6 +920,20 @@ class BaseTools(FreeCADObject):
         if fitV: self.fitView()
         return objs
 
+    def Circle(self, r, q, vector,
+            f=False, aDeflection=1, deviation=0.1, s=None,
+            vis=False, gui=True, fitV=True,
+            **kwargs):
+        self.pl.Rotation.Q = q
+        self.pl.Base = FreeCAD.Vector(*vector)
+        circle = Draft.make_circle(radius=r,placement=self.pl,face=f,support=s,**kwargs)
+        circle.AngularDeflection = aDeflection
+        circle.Deviation = deviation
+        self.autogroup(circle)
+        if vis: self.updateGui(vis, fitV=True)
+        self._setVisibility(circle, vis)
+        return circle
+
     def __Feature(self, name):
         self.__typeLenCheck(name, str)
         return self.AddObject('Part::Feature', name)
@@ -1016,7 +1034,7 @@ class Model(BaseTools):
             return [ obj for obj in objs if obj.Shape.Volume ]
         return objs
 
-class DometicModel(Model):
+class DomicalModel(Model):
 
     def defineRowsCols(self, ny, nz):
         assert ny <= self.DETAILS/4, "NumberError: ny (ROWS) not in range"
@@ -1073,7 +1091,7 @@ class DometicModel(Model):
             if f1 >= n: break
         return f1 == n
 
-class Movement(DometicModel):
+class Movement(DomicalModel):
 
     def rotate(self, objs, angle, zero, axis, times, cp=True, sort=False, **kwargs):
         assert isinstance(objs, list), "TypeError: objs must be type of list"
@@ -1620,12 +1638,12 @@ class MonoGraduatedArc(Mono3DPoints):
         zPOINTS = self.zPolyPoints(Or)
         arc = self.sequenceByGraduatedArc(zPOINTS)
         points  = list()                                                 # returns for each:                 +
-        for B, x, a, b in arc:                                           #                                    \
+        for _, x, a, b in arc:                                           #                                    \
             B = self.angleB_ByAB(a, b)                                   #                          mid point _\
             c = self.rightCathetusA_ByA(x, 90-B)                         #                                     |\
-            a = self.rightCathetusA_ByA(c, 90-B)                         #                                    b| \
+            a = self.rightCathetusA_ByA(c, 90-B)                         #                                   b | \
             b = self.rightSideB_ByCA(c, a)                               # .___________________________________|__\
-            points.append([ a, b ])                                      #                     a
+            points.append([ a, b ])                                      # |<--------------- a --------------->|
         return points
 
 class MonoBlocks(MonoGraduatedArc):
