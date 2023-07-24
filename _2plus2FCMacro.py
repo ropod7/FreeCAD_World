@@ -58,7 +58,7 @@ domeFCMacro.MacroRoot().cprint('NICETY 999:', PI999)
 def modernPi(precision):
     """
         Compute Pi to the current precision;
-        https://docs.python.org/3.10/library/decimal.html?highlight=float#recipes
+        https://docs.python.org/3.10/library/decimal.html?#recipes
     """
     precision += 2                                                       # extra digits for intermediate steps
     decimal.getcontext().prec = precision
