@@ -2100,8 +2100,7 @@ class FrameMovement(FrameWireFrame):
 
     def _moveBottomToZero(self, b, MTW):
         if self.h1: return b
-        z = MTW/2
-        return self.move(b, 0,0,z, 1, cp=False)
+        return self.move(b, 0,0,MTW/2, 1, cp=False)
 
     def _shortToZero(self, ext, MTW):
         if self.h1: return ext
@@ -2371,10 +2370,8 @@ class Extend(object):
         if not self.cols: return
         tps = __class__._allp_, __class__._hori_
         extm = obj.extendPlg
-        to = [todrp[0]]
-        if obj.thor:
-            last = [ todrp[self.rows] ]
-            to = to + last
+        to = [ todrp[0] ]
+        if obj.thor: to += [ todrp[self.rows+1] ]
         [ extm(t, todrp) for t in tps ]
         return self.__dropH1s(obj, to, tps, extm)
 
