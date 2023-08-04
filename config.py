@@ -1,21 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-__Name__ = 'FreeCAD World'
+__Name__    = 'FreeCAD World'
 __Comment__ = 'Flexible parametric design of domical objects'
-__Author__ = 'ropod7'
-__Version__ = '0.4.2'
-__Status__ = 'alpha'
-__Date__ = '23.07.2023'
+__Author__  = 'ropod7'
+__Version__ = '0.4.3'
+__Status__  = 'alpha'
+__Date__    = '08.04.2023'
 __License__ = 'GNU General Public License v3.0'
-__Web__ = 'https://github.com/ropod7/FreeCAD_World'
-__Wiki__ = 'https://github.com/ropod7/FreeCAD_World/tree/master/docs'
-__Icon__ = ''
-__Help__ = 'Inscribed Polygon System'
-__Requires__ = '>=FreeCAD-0.20.2 + python3 build'
-__Contact__ = 'https://forum.freecad.org/viewtopic.php?f=22&t=53551'
+__Web__     = 'https://github.com/ropod7/FreeCAD_World'
+__Wiki__    = 'https://github.com/ropod7/FreeCAD_World/tree/master/docs'
+__Icon__    = ''
+__Help__    = 'Inscribed Polygon System'
+__Requires__      = '>=FreeCAD-0.20.2 + python3 build'
+__Contact__       = 'https://forum.freecad.org/viewtopic.php?f=22&t=53551'
 __Communication__ = 'https://forum.freecad.org/viewtopic.php?f=29&t=53554'
-__Files__ = 'https://github.com/ropod7/FreeCAD_World'
+__Files__         = 'https://github.com/ropod7/FreeCAD_World'
 
 """
 
