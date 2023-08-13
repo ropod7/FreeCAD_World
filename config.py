@@ -4,9 +4,9 @@
 __Name__    = 'FreeCAD World'
 __Comment__ = 'Flexible parametric design of domical objects'
 __Author__  = 'ropod7'
-__Version__ = '0.4.3'
+__Version__ = '0.4.4'
 __Status__  = 'alpha'
-__Date__    = '04.08.2023'
+__Date__    = '13.08.2023'
 __License__ = 'GNU General Public License v3.0'
 __Web__     = 'https://github.com/ropod7/FreeCAD_World'
 __Wiki__    = 'https://github.com/ropod7/FreeCAD_World/tree/master/docs'
@@ -30,43 +30,43 @@ __Files__         = 'https://github.com/ropod7/FreeCAD_World'
 ###############################################################################
 #         ____   _____  __   _______ __  _____    _
 #        /  __\ /  _  \|  \_| |  ___|  |/ ____\  |_|
-#       |  |___|  |_|  |  _   |  |_ |  |  \_,-,   _
-#        \____/ \_____/|_| \__|__|-'|__|\___  |  |_|
-#                                           '-'
+#       |  |___|  |_|  |  _   |  |_ |  |  \_,–,   _
+#        \____/ \_____/|_| \__|__|–'|__|\___  |  |_|
+#                                           '–'
 ###############################################################################
 
 # Root object params (mm):
-DETAILS  = int(10)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
-OR     = float(4027.1) # Outscribed R of polygon (or inscribed polygon) & carriage on X axis
-H1     = float(2684.1) # Height of 1st 'floor' & carriage on Z (or 0)
-LONG   = float(2054.7) # Extension & carriage on Y axis (or 0)
+DETAILS  = int(18)  # Detalization of polygon [should be divisible by 4 and min is 4 (otherwise experimental)]
+OR     = float(3000) # Outscribed R of polygon (or inscribed polygon) & carriage on X axis
+H1     = float(1500) # Height of 1st 'floor' & carriage on Z (or 0)
+LONG   = float(0) # Extension & carriage on Y axis (or 0)
 THORUS = dict( # Proportionally expanded (OR becomes IR or both False is DOME)
     CORNER = bool(False), # Inner side of thorus. Outside R of dome becomes inside R
-    DISC   = bool(True)  # Outer side of thorus. OR = OR*3
+    DISC   = bool(False)  # Outer side of thorus. OR = OR*3
 ) # template of SpreadSheet system of object:
-ROWS    = int(2)#DETAILS/4) # Number of rows revolving around Y axis (min: 0; max: DETAILS/4)
+ROWS    = int(DETAILS/4) # Number of rows revolving around Y axis (min: 0; max: DETAILS/4)
 COLS    = int(DETAILS)   # Number of cols revolving around Z axis (min: 0; max: DETAILS)
 
 # Materials (mm)    [ (!!!) it works just with domeFCMacro.py module (!!!) ]:
-MONO   = float(200)        # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not FRAME
-FRAME = tuple((50, 200)) # (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
+MONO   = float(15)        # Sheet mtl/Stone/concrete system (wall thickness). if MONO > 0: not FRAME
+FRAME = tuple((150, 200)) # (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
 
 # Construction (mm) [ (!!!) it works just with houseFCMacro.py module (!!!) ]:
 HOUSE = dict( # THORUS still experimental:
-    FRAME    = tuple((339.7, 1138.9)),# (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
-    INSULANT  = float(692),# Insulant thickness. (!!!) Must be lower than FRAME BAR height (!!!).
-    CONTOUR   = float(134.8), # Ventilated contour (if 0 Gives + 1-3 mm). (!!!) Make sure differences between H1, LONG layers (!!!).
-    COVER     = float(786.9), # Sheet material thickness (or 0). (!!!) floating CONTOUR space accuracy +\- 2 mm. (!!!)
-    # OUTSCRIBE = bool(True) # in case of needs to outscribe THORUS into DOME building according COVER and CONTOUR. (!!!) NOT YET IMPLEMENTED (!!!).
+    FRAME    = tuple((150, 200)),# (Width, Height) of wooden bar/pipe/sheet mtl. etc: == [Width < Height]
+    INSULANT  = float(150),# Insulant thickness. (!!!) Must be lower than FRAME BAR height (!!!).
+    CONTOUR   = float(50), # Ventilated contour (if 0 Gives + 1-3 mm). (!!!) Make sure differences between H1, LONG layers (!!!).
+    COVER     = float(15), # Sheet material thickness (or 0). (!!!) floating CONTOUR space accuracy +\- 2 mm. (!!!)
+    # returns sliced polygonal parts:
+    SLICE     = bool(True)
 )
 
 # 2 + 2 [ (!!!) it works just with _2plus2FCMacro.py module (!!!) ]:
 NICETY = int(100) # Nicety of circle. Precision or decimal digits of modern π. min is 3 (returns 3.14); max 10**4.
 
-# Compound options:
-EXTEND   = bool(True)   # Root as open contour system (fill up long, h1, cols, rows)
+# Compound options (if both are False returns production root):
+EXTEND   = bool(False)   # Root as open contour system (fill up long, h1, cols, rows)
 COMPOUND = bool(False)   # Simple compounded object (if LONG: COLS <= DETAILS/2)
-SLICE    = bool(True)    # if EXTEND and SLICE are True returns sliced polygonal parts of (!!!) HOUSE (!!!)
 
 # Movement (mm):
 ROTATE = dict( # Rotate COMPOUNDed object
