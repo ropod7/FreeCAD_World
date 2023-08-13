@@ -186,7 +186,7 @@ main = __name__ == '__main__'
 t = time.time()
 
 if main:
-    obj = RandomHouseTest(root=None, cover=True, dome_probability=True,
+    obj = RandomHouseTest(root=None, cover=True, dome_probability=False,
             cleanup=True, gui=False)
 
     OBJ = HouseCompound
@@ -195,9 +195,9 @@ if main:
 
     objs = obj.root(solid=True)
 
-    comp = compoundModel( objs, OBJ, True, False, dict(DO=False), dict(DO=False) )
+    # comp = compoundModel( objs, OBJ, True, False, dict(DO=False), dict(DO=False) )
 
-    comp.slicePolys()
+    obj.slicePolys()
 
 try:
     t = time.time() - t
