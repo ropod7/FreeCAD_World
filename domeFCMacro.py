@@ -83,7 +83,7 @@ class Trigon(object):
         try:
            return b/a
         except ZeroDivisionError:
-            return self.__tan(90)                                      # tan(90 degrees)
+            return self.__tan(90)                                        # tan(90 degrees)
 
     def angleB_ByAB(self, a, b, control=True):
         """
@@ -367,14 +367,14 @@ class ThorusPoints(GraduatedArc):
             x, y = 0, self.X_OR + self.X_ORreduced
         return x, y
 
-    def __fixedXYRoots(self, x, y, MTL):
+    def __fixedXYRoots(self, x, y, MTL, skip=False):
         """
         First couple of root X and Y points in case of Y > 0,
         to find complete proportions of toroidal trigonometry.
         """
         root_x, root_y = self._x_ORRootXYPoints()
-        root_x = root_x if self.corn else root_x*2 - (root_x - x)
-        root_y = root_y if self.corn else root_y*2 - (root_y - y)
+        root_x = root_x if self.corn or skip else root_x*2 - (root_x - x)
+        root_y = root_y if self.corn or skip else root_y*2 - (root_y - y)
         return root_x, root_y
 
     def __fixedZeroYXRoot(self, x):
@@ -385,8 +385,8 @@ class ThorusPoints(GraduatedArc):
         if self.dome:
             return (x + self._addititionalMove(MTL), y, 0)
         x = self.__cornerXPoint(x, y, MTL)
-        y = self.__cornerYPoint(x, y, 0, MTL)
-        return (x, y, 0)
+        y = self.__cornerYPoint(x, y, MTL)
+        return (x + self._addititionalMove(MTL), y, 0)
 
     def _h1Points(self, w, MTL):
         disc_r = self.OR*3 - self.X_ORreduced*2
@@ -394,10 +394,10 @@ class ThorusPoints(GraduatedArc):
         elif self.disc: return disc_r if not w else disc_r-MTL.T
         return self.X_OR if not w else self.X_OR+MTL.T
 
-    def _pntHPolyMnr(self, x, y, z, MTL):
+    def _pntHPolyMnr(self, x, y, z, MTL, **kwargs):
         if self.dome: return (x, y, z)
-        x = self.__cornerXPoint(x, y, MTL)
-        y = self.__cornerYPoint(x, y, z, MTL)
+        x = self.__cornerXPoint(x, y, MTL, **kwargs)
+        y = self.__cornerYPoint(x, y, MTL, **kwargs)
         x += self.__cornerMonoXExtend(y, MTL)
         y += self.__cornerMonoYExtend(y, MTL)
         return (x, y, z)
@@ -409,17 +409,16 @@ class ThorusPoints(GraduatedArc):
         else: x, y, z = (x+(r - x)*2, 0, z+self.ZERO_Z)
         return (x, y, z)
 
-    def __cornerXPoint(self, x, y, MTL):
+    def __cornerXPoint(self, x, y, MTL, **kwargs):
         r = self.X_OR + self.X_ORreduced
         if not round(y, 5):                                              # round till self.DEVIATION according y
             zero_y_x = self.__fixedZeroYXRoot(x)
-            x += (r - x)*2 + zero_y_x
-            return x
-        root_x, _ = self.__fixedXYRoots(x, y, MTL)
+            return x + (r - x)*2 + zero_y_x
+        root_x, _ = self.__fixedXYRoots(x, y, MTL, **kwargs)
         return x + (root_x - x)*2
 
-    def __cornerYPoint(self, x, y, z, MTL):
-        _, root_y = self.__fixedXYRoots(x, y, MTL)
+    def __cornerYPoint(self, x, y, MTL, **kwargs):
+        _, root_y = self.__fixedXYRoots(x, y, MTL, **kwargs)
         if not round(y, 5): return 0                                     # round till self.DEVIATION according y
         return y + (root_y - y)*2
 
@@ -431,14 +430,14 @@ class ThorusPoints(GraduatedArc):
         return 0
 
     def __cornerMonoXExtend(self, y, MTL):
-        if MTL.MONO and self.corn:
+        if MTL.MONO and self.elongated:
             x = self.rightSideB_ByAA(MTL.T, self.DETAIL_A)
-            return x if not y else -x
+            return x if not round(y, 5) else -x
         return 0
 
     def __cornerMonoYExtend(self, y, MTL):
-        if MTL.MONO and self.corn:
-            return MTL.T if y else -MTL.T
+        if MTL.MONO and self.elongated:
+            return MTL.T if round(y, 5) else -MTL.T
         return 0
 
     @property
@@ -536,7 +535,7 @@ class ExtensionPoints(ThorusPoints):
     def __insertionUnits(self, size, MTT):
         "Returns dimension and amount of internal orthogonal objects"
         if not size: return 0, 0
-        r = self.OR + self.X_ORreduced
+        r = self.X_OR + self.X_ORreduced
         reduc = r/self.DETAILS
         amount = int(size / self.isoscelesBase(r - reduc)) or 1
         return size / amount, amount
@@ -855,7 +854,7 @@ class BaseTools(FreeCADObject):
         return self._setVisibility(f, vis)
 
     def Extrude(self, surface, direction, height,
-            rev=0, s=True, vis=True, d="Custom", taperA=0, taperARev=0,
+            rev=0, s=True, vis=True, d='Custom', taperA=0, taperARev=0,
             name='Extrude'):
         e = self.AddObject('Part::Extrusion', name)
         e.Base          = surface
@@ -898,7 +897,10 @@ class BaseTools(FreeCADObject):
         bv = self.vector(*vector)
         [ wires.append(i) for i in shape.slice(bv, move) ]
         slicer = self.__Feature(name)
-        slicer.Shape = self.__Compound(wires)
+        try: slicer.Shape = self.__Compound(wires)
+        except AssertionError:
+            kw = dict(vector=vector, visobj=visobj, name=name)
+            return self.Slice(obj, move=self.DEVIATION, **kw)
         slicer.purgeTouched()
         self.label = name
         self._setVisibility(obj, visobj)
@@ -943,7 +945,7 @@ class BaseTools(FreeCADObject):
         return Part.Compound(objs)
 
     def __typeLenCheck(self, obj, tp):
-        assert isinstance(obj, tp), "TypeError: given obj must be iterable"
+        assert isinstance(obj, tp), "TypeError: given obj must be type of " + str(tp)
         assert len(obj),            "LengthError: zero length of obj"
 
     @property
@@ -1029,7 +1031,7 @@ class Model(BaseTools):
     def __extrude(self, surface, direction, height, **kwargs):
         return [ self.Extrude(surface, direction, height, **kwargs) ]
 
-    def _sortByVolume(self, objs, sort=False):                          # if zero shape after all procedures: remove from objects
+    def _sortByVolume(self, objs, sort=False):                           # if zero shape after all procedures: remove from objects
         if sort:
             return [ obj for obj in objs if obj.Shape.Volume ]
         return objs
@@ -1097,7 +1099,7 @@ class Movement(DomicalModel):
         assert isinstance(objs, list), "TypeError: objs must be type of list"
         if not len(objs): return list()
         objs = self._sortByVolume(objs, sort=sort)
-        if times < 0:   # rotate backward feature
+        if times < 0:                                                    # rotate backward feature
             times *= -1
             angle = -angle
         if not cp:
@@ -1555,7 +1557,7 @@ class ModelLayer(ModelMovement):
 
     def copy(self, o):
         assert isinstance(o, list) and len(o), "TypeError: not a type of list or zero lenght"
-        return self.rotate(o, 0, (0,0,0), (0,0,0), 1, cp=True) # just copy
+        return self.rotate(o, 0, (0,0,0), (0,0,0), 1, cp=True)           # just copy
 
     def _polygonCutTool(self, height, direction=(0,1,0), **kwargs):
         placement = (self.ZERO_X, 0, self.ZERO_Z)
@@ -1691,16 +1693,15 @@ class MonoWireFrame(MonoBlocks):
     def __createToolWire(self):
         if not self.rows or self.thor: return
         r = self.X_OR + self.X_ORreduced
-        r = r*2 if self.elongated else r
         base = self.isoscelesBase(r)
         c, A = base, self.DETAIL_A
-        c = c if self.elongated else c/2
         x = self.rightSideB_ByA(c, A)
         y = self.rightCathetusA_ByA(c, A)
-        x1, x2 = (-x, 0) if self.elongated else (-x,  x)
-        y1, y2 = ( y, 0) if self.elongated else ( y, -y)
+        x1, x2 = (self.DEVIATION, 0) if self.elongated else ( x, -x)
+        y1, y2 = (0, self.DEVIATION) if self.elongated else (-y,  y)
         self.toolWire = self.wire([
-            (x1+self.ZERO_X, y1, self.ZERO_Z), (x2+self.ZERO_X, y2, self.ZERO_Z)
+            self._pntHPolyMnr(x1, y1, self.ZERO_Z, self.MTL, skip=True),
+            self._pntHPolyMnr(x2, y2, self.ZERO_Z, self.MTL, skip=True)
             ], vis=self.wfVisibility)
         return self.toolWire
 
@@ -2838,7 +2839,7 @@ if main:
         import sys
         assertionInform(sys.exc_info()[2])
     finally:
-        if CONFIG is None: exit(0)                                       # To repair CONFIG before coding
+        if CONFIG is None: exit(0)                                       # To repair CONFIG before coding if syntax error
 
 if main and CONFIG:
 
