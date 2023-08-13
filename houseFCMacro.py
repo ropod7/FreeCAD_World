@@ -18,7 +18,9 @@ import inspect
 import domeFCMacro
 importlib.reload(domeFCMacro)
 
-from domeFCMacro import Blocks, Materials, ModelRoot, MonoGraduatedArc
+from domeFCMacro import MonoGraduatedArc, ThorusPoints
+
+from domeFCMacro import Blocks, Materials, ModelRoot
 
 from domeFCMacro import Root, FrameRoot, FrameDome, FrameCorner, \
         FrameDisc, FrameThorus, MonoWireFrame, MonoModelLayer,    \
@@ -69,6 +71,15 @@ class HouseFrame(Root):
 
 # BEGIN: Insulant root creation system
 
+class InsulantThorusPoints(ThorusPoints):
+
+    def _addititionalMove(self, MTL):
+        cmove = int(MTL.T/(self.DETAILS/2))
+        dmove = self.rightCathetusA_ByB(cmove, self.DETAIL_B)
+        if self.corn:
+            return self.rightSideB_ByA(MTL.T, self.DETAIL_A)
+        return 0
+
 class InsulantMaterials(Materials):
 
     def __init__(self, *args, frame_w=None,  **kwargs):
@@ -84,7 +95,7 @@ class InsulantMaterials(Materials):
     def FRAME_W(self):
         return self.__frame_w
 
-class InsulantModelRoot(ModelRoot):
+class InsulantModelRoot(InsulantThorusPoints, ModelRoot):
 
     def _setMaterial(self, **kwargs):
         self.MTL = InsulantMaterials(self, **kwargs)
@@ -311,18 +322,17 @@ class Cover(Root):
 class House(object):
 
     def __init__(self, *args,
-            FRAME=None, INSULANT=None, CONTOUR=None, COVER=None,
+            FRAME=None, INSULANT=None, CONTOUR=None, COVER=None, SLICE=None,
             cleanup=None, **kwargs):
         assert isinstance(FRAME, tuple), "TypeError: FRAME must be type of tuple"
         assert len(FRAME) == 2,     "Wrong tuple length. Must be 2 as (width, height)"
         assert FRAME[0] < FRAME[1], "FRAME width must be lower than FRAME height"
         assert INSULANT < FRAME[1], "INSULANT must be lower than FRAME height"
         assert CONTOUR >= 0,        "CONTOUR must be higher than 0 or 0"
-        self.house_frame = HouseFrame(*(*FRAME, *args), cleanup=cleanup, **kwargs)
+        house_frame = HouseFrame(*(*FRAME, *args), cleanup=cleanup, **kwargs)
         self.insulant = Insulant(FRAME, INSULANT, *args, cleanup=False, **kwargs)
         self.cover = Cover(COVER, CONTOUR, *args, cleanup=False, **kwargs) if COVER else None
-        self.insulant.house_frame = self.house_frame                     #
-        del self.house_frame                                             # reduce amount of objects
+        self.insulant.house_frame = house_frame
 
     def wireFrame(self, *args, **kwargs):
         self.__run(*args, **kwargs)
@@ -340,6 +350,20 @@ class House(object):
         objs = [ self.insulant.house_frame, self.insulant, self.cover ]
         [ getattr(o, mn)(*args, **kwargs) for o in objs if o is not None ]
 
+    def slicePolys(self, hideobj=True):
+        obj, slc = self.insulant, list()
+        if not obj.rows or not obj.cols: return
+        xOr = (obj.OR + obj.X_ORreduced*3)*2
+        xOr = xOr if obj.dome or obj.corn else xOr*2
+        hfr, ins, cvr = self.insulant.house_frame, obj, self.cover
+        hfr_hpl = obj.copy(hfr.getRoot(FrameRoot._hplb_))
+        ins_hpl = obj.copy(ins.getRoot(MonoRoot._hpl_))
+        cvr_hpl = obj.copy(cvr.getRoot(MonoRoot._hpl_)) if cvr else None
+        objs = [ hfr_hpl, ins_hpl, cvr_hpl ]
+        objs = [ obj.pToSliceZHB(o, cp=False) for o in objs if o is not None ]
+        [ slc.extend(obj.move(o, xOr,0,0, 1, cp=False, fitV=True)) for o in objs ]
+        return obj.slice(slc)
+
 # END: House root creation system
 
 # BEGIN: Basic flexible extend and compound of House
@@ -350,7 +374,7 @@ class HouseExtend(FrameCompound, MonoCompound):
         insulant, cover = objs
         tmp = FrameCompound(insulant.house_frame, **kwargs)
         self.__hfr_ = tmp.obj
-        del insulant.house_frame                                         # reduce amount of objects
+        # del insulant.house_frame                                         # reduce amount of objects
         tmp = MonoCompound(insulant, **kwargs)
         self.__ins_ = tmp.obj
         tmp = MonoCompound(cover, **kwargs) if cover else None
@@ -379,8 +403,6 @@ class HouseExtend(FrameCompound, MonoCompound):
         return self.__cols
 
 class HouseCompound(HouseExtend):
-    _hplb_ = FrameRoot._hplb_
-    _hpl_  = MonoRoot._hpl_
     _totl_ = Compound._totl_
     _abs_totl_ = str('absolute_') + _totl_
 
@@ -395,19 +417,6 @@ class HouseCompound(HouseExtend):
         cvr_total = MonoCompound.compound(self, obj=self.cvr) if self.cvr else None
         totals = [ hfr_total, ins_total, cvr_total ]
         [ self.obj.extend(abs_total, t) for t in totals if t is not None ]
-
-    def slicePolys(self, hideobj=True):
-        if not self.obj.rows or not self.obj.cols: return
-        obj, slc = self.obj, list()
-        xOr = (obj.OR + obj.X_ORreduced*3)*2
-        xOr = xOr if obj.dome or obj.corn else xOr*2
-        hfr_hpl = obj.copy(self.hfr.getRoot(__class__._hplb_))
-        ins_hpl = obj.copy(self.ins.getRoot(__class__._hpl_))
-        cvr_hpl = obj.copy(self.cvr.getRoot(__class__._hpl_)) if self.cvr else None
-        objs = [ hfr_hpl, ins_hpl, cvr_hpl ]
-        objs = [ obj.pToSliceZHB(o, cp=False) for o in objs if o is not None ]
-        [ slc.extend(obj.move(o, xOr,0,0, 1, cp=False, fitV=True)) for o in objs ]
-        return obj.slice(slc)
 
     def rotate(self, *args):
         objs = self.obj.get(__class__._abs_totl_)
@@ -442,14 +451,14 @@ if main:
         import config
         importlib.reload(config)
 
-        from config import DETAILS, OR, H1, LONG, THORUS, ROWS, COLS,   \
-                HOUSE, EXTEND, COMPOUND, SLICE, ROTATE, MOVE, WIREFRAME, \
+        from config import DETAILS, OR, H1, LONG, THORUS, ROWS, COLS, \
+                HOUSE, EXTEND, COMPOUND, ROTATE, MOVE, WIREFRAME,      \
                 ROOT, SOLID, PRINT3D, CLEANUP, GUI_CLEANUP, CONFIG
     except (AssertionError, SyntaxError):
         import sys
         assertionInform(sys.exc_info()[2])
     finally:
-        if CONFIG is None: exit(0)                                       # To repair CONFIG before coding
+        if CONFIG is None: exit(0)                                       # To repair CONFIG before coding if syntax error
 
 if main and CONFIG:
 
@@ -481,7 +490,7 @@ if main and CONFIG:
 
     comp = compoundModel( objs, OBJ, EXTEND, COMPOUND, ROTATE, MOVE )
 
-    if EXTEND and SLICE: comp.slicePolys()
+    if HOUSE.get('SLICE'): obj.slicePolys()
 
 elif main and not CONFIG:
     "Start coding here disabling CONFIG and TEST"
