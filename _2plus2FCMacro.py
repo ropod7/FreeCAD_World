@@ -22,7 +22,9 @@ import config
 importlib.reload(config)
 from config import DETAILS, OR, NICETY
 
-pi = """
+FEYNMAN = 999999                                                         # Six 9s which begins at 762nd decimal place of π, named "Feynman Point"
+
+pi = f"""
 3,1415926535 8979323846 2643383279 5028841971 6939937510
   5820974944 5923078164 0628620899 8628034825 3421170679
   8214808651 3282306647 0938446095 5058223172 5359408128
@@ -38,11 +40,11 @@ pi = """
   0005681271 4526356082 7785771342 7577896091 7363717872
   1468440901 2249534301 4654958537 1050792279 6892589235
   4201995611 2129021960 8640344181 5981362977 4771309960
-  5187072113 4_999999_8 3729780499 5105973173 2816096318
-  5950244594 5534690830 2642522308 2533446850 3526193118
-  8171010003 1378387528 8658753320 8381420617 1776691473
-  0359825349 0428755468 7311595628 6388235378 7593751957
-  7818577805 3217122680 6613001927 8766111959 0921642019 ...
+  5187072113 4{FEYNMAN} 8372978049 9510597317 3281609631
+  8595024459 4553469083 0264252230 8253344685 0352619311
+  8817101000 3137838752 8865875332 0838142061 7177669147
+  3035982534 9042875546 8731159562 8638823537 8759375195
+  7781857780 5321712268 0661300192 7876611195 90921642019 ...
 """                                                                      # 999 decimal digits of modern π (not constant)
 
 pi = pi.replace(chr(10),   str())
@@ -57,8 +59,8 @@ domeFCMacro.MacroRoot().cprint('NICETY 999:', PI999)
 
 def modernPi(precision):
     """
-        Compute Pi to the current precision;
-        https://docs.python.org/3.10/library/decimal.html?#recipes
+        Compute Pi to the given precision;
+        https://docs.python.org/3.11/library/decimal.html?#recipes
     """
     precision += 2                                                       # extra digits for intermediate steps
     decimal.getcontext().prec = precision
@@ -75,6 +77,6 @@ def modernPi(precision):
 
 PI = modernPi(NICETY)
 
-domeFCMacro.MacroRoot().cprint('NICETY {}:'.format(NICETY), PI)
+domeFCMacro.MacroRoot().cprint('NICETY {}:'.format(len(str(PI))-1), PI)
 
 # затык
