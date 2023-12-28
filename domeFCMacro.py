@@ -15,14 +15,14 @@ import time
 import math
 from collections.abc import MutableMapping
 
-# BEGIN: Trigonometrical Common Geometry
+# BEGIN: Trigonometry of Common Geometry
 
 class Trigon(object):
 
     def __init__(self, oRadius, details):
         "Receives OR and DETAILS definitions"
-        assert isinstance(oRadius, float), "TypeError: oRadius (OR) must be type of float"
-        assert isinstance(details, int),   "TypeError: details (DETAILS) must be type of integer"
+        assert isinstance(oRadius, float), "TypeError:  oRadius (OR) must be type of float"
+        assert isinstance(details, int),   "TypeError:  details (DETAILS) must be type of integer"
         assert details >= 4,               "ValueError: details (DETAILS) not in range"
         self.__OR_ = oRadius
         self.__DETAILS = details
@@ -36,7 +36,7 @@ class Trigon(object):
         a    == cathetus
         b    == side b of right triangle
         c    == hypothenuse of right triangle == math.sqrt(a**2 + b**2)
-        base == side b*2
+        base == (side b)*2
     """
 
     def rightSideB_ByA(self, c, A):
@@ -83,7 +83,7 @@ class Trigon(object):
         try:
            return b/a
         except ZeroDivisionError:
-            return self.__tan(90)                                        # tan(90 degrees)
+            return self.__tan(90)                                        # tan(90°)
 
     def angleB_ByAB(self, a, b, control=True):
         """
@@ -105,11 +105,11 @@ class Trigon(object):
 
     @property
     def CIRCLE(self):
-        return 360
+        return int(360)
 
     @property
     def HALF_CIRCLE(self):
-        return self.CIRCLE / 2
+        return int(self.CIRCLE / 2)
 
     @property
     def OR(self):
@@ -172,7 +172,7 @@ class PairOfCompasses(Trigon):
         """
             Extra solution for thorus to find proportions
             on y axis of higher 'horison poly wireframe'.
-            System-wide single deviation is:
+            Dome-wide single deviation is:
                 x == 0.01 mm if 0 on x & y axis
                 in case of self.DETAILS % 4 == 0
         """
@@ -254,9 +254,9 @@ class PairOfCompasses(Trigon):
         x, y = self.circumscribedCounterClockWiseOnce(x, y)              # angles A and B away from a given polygon
         c = self.rightHypothenuse_ByAB(x, z-z0)                          # helps Pythagoras: math.sqrt(a**2 + b**2) (x as a cathetus a)
         sin_A = x/c                                                      # - sin(A)? - no problem!
-        reduced_c = reductor                                             #------------------------------------------------------------#
-        reduced_a = reductor * sin_A                                     # sides a,b,c of triangle of 3D reductor                     #
-        reduced_b = self.rightSideB_ByCA(reduced_c, reduced_a)           #------------------------------------------------------------#
+        reduced_c = reductor                                             #<------------------------------------------------------------#
+        reduced_a = reductor * sin_A                                     #<--       sides a,b,c of triangle of 3D reductor             #
+        reduced_b = self.rightSideB_ByCA(reduced_c, reduced_a)           #<------------------------------------------------------------#
         x -= reduced_a
         z -= reduced_b
         x, y = self.circumscribedClockWiseOnce(x, y)
@@ -564,7 +564,7 @@ class ExtensionPoints(ThorusPoints):
     def insH1N(self):
         return self.__insH1N_
 
-# END: Trigonometrical Common Geometry
+# END: Trigonometry of Common Geometry
 
 # BEGIN: FreeCAD system covers
 
@@ -1072,7 +1072,6 @@ class DomicalModel(Model):
     @property
     def abs_quatro(self):                                                # absolute quatro
         return self.quatro and self.equal_rows
-
 
     @property
     def singleton(self):
@@ -1631,17 +1630,17 @@ class MonoGraduatedArc(Mono3DPoints):
     def monoSurfaceMidPoints(self, Or, manipulator=0):
         """
             Receives: Or and manipulator;
-            Operates with: GraduatedArc.sequenceByGraduatedArc(list);
+            Operates with: GraduatedArc.sequenceByGraduatedArc(zPOINTS);
             Returns: surface mid points, where cathetus lies
             on face at an angle of 90 degrees;
-            All _bottom wires_ of faces lies on z=y=0;
+            All _bottom_wire_mid_points_ of faces lies on z=y=0;
         """
         Or += manipulator
         zPOINTS = self.zPolyPoints(Or)
         arc = self.sequenceByGraduatedArc(zPOINTS)
         points  = list()                                                 # returns for each:                 +
         for _, x, a, b in arc:                                           #                                    \
-            B = self.angleB_ByAB(a, b)                                   #                          mid point _\
+            B = self.angleB_ByAB(a, b)                                   #                          90° point _\
             c = self.rightCathetusA_ByA(x, 90-B)                         #                                     |\
             a = self.rightCathetusA_ByA(c, 90-B)                         #                                   b | \
             b = self.rightSideB_ByCA(c, a)                               # .___________________________________|__\
@@ -1661,11 +1660,11 @@ class MonoBlocks(MonoGraduatedArc):
     def getFcs(self, name):
         return self._getRoot(__class__._face_, name)
 
-    def appendTool(self, name, l):
-        return self._appendRoot(__class__._tool_, name, l)
-
     def extendTool(self, name, l):
         return self._extendRoot(__class__._tool_, name, l)
+
+    def appendTool(self, name, l):
+        return self._appendRoot(__class__._tool_, name, l)
 
     def getTool(self, name):
         return self._getRoot(__class__._tool_, name)
@@ -1738,13 +1737,6 @@ class MonoModelLayer(MonoWireFrame):
         [ ext(tp, surf( [wf[i]], [wf[i+1]] )) for i in rng ]
         return self.getFcs(tp)
 
-    def _buildPolyPolyTools(self, tp, **kwargs):
-        f, tp = self.__createPolyToolFaces(tp)
-        self.__cuttingPolygons(**kwargs)
-        tools = self.__prepareTools(f, **kwargs)
-        self.appendTool(tp, tools)
-        return self.getTool(tp)
-
     def _createExtPolyFaces(self, tp, cls=None):
         w, f = self.getWfr(tp)
         f = self.surface(w, f)
@@ -1758,6 +1750,13 @@ class MonoModelLayer(MonoWireFrame):
         rng  = range(len(hpwf))
         [ ext(tp, surf([self.toolWire[0]], [hpwf[i]])) for i in rng ]
         return self.getFcs(tp), tp
+
+    def _buildPolyPolyTools(self, tp, **kwargs):
+        f, tp = self.__createPolyToolFaces(tp)
+        self.__cuttingPolygons(**kwargs)
+        tools = self.__prepareTools(f, **kwargs)
+        self.appendTool(tp, tools)
+        return self.getTool(tp)
 
     def __cuttingPolygons(self, rev=0):
         if self.thor: return
@@ -1991,7 +1990,7 @@ class Frame3DPoints(ModelRoot):
             Receives:
                 Or of inscribed polygon;
                 global z (or ZERO_Z) of construction;
-                z_correct as an additional move in/out frame
+                manipulator as an additional move in/out frame
                 reductor as a material (frame) height;
             Returns:
                 list of all 3D points of quarter of dome;
@@ -2142,7 +2141,7 @@ class FrameModelLayer(FrameMovement):
         return self._cutHPolysByTool(extruded, tool)
 
     def _extrudeVertical(self, edges, MTW):
-        assert isinstance(edges, list) and len(edges), "TypeError: empty or wrong type of edges"
+        assert isinstance(edges, list) and len(edges), "TypeError: empty or not type of list"
         edges1, edges2 = edges
         s = self.surface(edges1, edges2)
         f = self.extrude(s, (0,1,0), MTW)
@@ -2545,7 +2544,7 @@ class Compound(Extend):
 
     def compound(self, obj=None):
         """
-        Trigonometry based compound extended object:
+        Trigonometry based compound of extended object:
             moved by: -X carriage on Y: LONG/2
         """
         assert isinstance(obj, ModelRoot), "TypeError: unknown type of building"
@@ -2878,7 +2877,7 @@ if main and CONFIG:
     comp = compoundModel( obj, OBJ, EXTEND, COMPOUND, ROTATE, MOVE )
 
 elif main and not CONFIG:
-    "Start coding here disabling CONFIG and TEST"
+    "Start coding here disabling CONFIG"
     class FibonacciTrigon(Trigon):
 
         def __init__(self, *args):
