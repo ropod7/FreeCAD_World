@@ -50,7 +50,6 @@ pi = f"""
 pi = pi.replace(chr(10),   str())
 pi = pi.replace(chr(32),   str())
 pi = pi.replace(chr(46),   str())
-pi = pi.replace(chr(95),   str())
 pi = pi.replace(chr(44), chr(46))
 
 PI999 = decimal.Decimal(pi)
